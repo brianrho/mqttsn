@@ -1,3 +1,6 @@
+#ifndef MQTTSN_DEFINES_H_
+#define MQTTSN_DEFINES_H_
+
 #define GW_ADDR_LENGTH              2
 
 /* this is the present maximum message/packet size,
@@ -29,3 +32,4 @@
 
 #define MQTTSN_MAX_QUEUED_PUBLISH   64
 
+#endif
