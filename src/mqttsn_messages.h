@@ -1,3 +1,6 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
 #ifndef MQTTSN_MESSAGES_H_
 #define MQTTSN_MESSAGES_H_
 

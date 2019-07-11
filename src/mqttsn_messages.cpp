@@ -1,3 +1,6 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
 #include "mqttsn_messages.h"
 
 #include <stdint.h>

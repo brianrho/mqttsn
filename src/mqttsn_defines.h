@@ -1,3 +1,6 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
 #ifndef MQTTSN_DEFINES_H_
 #define MQTTSN_DEFINES_H_
 
