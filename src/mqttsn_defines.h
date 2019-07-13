@@ -4,7 +4,7 @@
 #ifndef MQTTSN_DEFINES_H_
 #define MQTTSN_DEFINES_H_
 
-#define GW_ADDR_LENGTH              2
+#define MQTTSN_MAX_ADDR_LEN         10
 
 /* this is the present maximum message/packet size,
  * deemed enough for our pruposes, but can be greater if needed.
@@ -16,15 +16,18 @@
 #define MQTTSN_HEADER_LEN           2
 #define MQTTSN_MAX_CLIENTID_LEN     23
 
-/* in seconds */
-#define MQTTSN_DEFAULT_KEEPALIVE    30
+#define MQTTSN_TOPIC_NOTASSIGNED    0x0000
+#define MQTTSN_TOPIC_UNSUBSCRIBED   0xFFFF
+
+/* in milliseconds */
+#define MQTTSN_DEFAULT_KEEPALIVE    30000UL
 
 /* timeout for all unicasted messages to GW in ms */
-#define MQTTSN_T_RETRY              5000
+#define MQTTSN_T_RETRY              5000UL
 #define MQTTSN_N_RETRY              3
 
 /* max delay between SEARCHGWs in milliseconds */
-#define MQTTSN_T_SEARCHGW           5000
+#define MQTTSN_T_SEARCHGW           10000UL
 
 /********** For gateways *************/
 

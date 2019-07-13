@@ -62,7 +62,7 @@ uint8_t MQTTSNHeader::unpack(uint8_t * buffer, uint8_t buflen)
 
 /**************** MQTTSNFlags ***************/
 
-MQTTSNFlags::MQTTSNFlags(void) : 
+/* MQTTSNFlags::MQTTSNFlags(void) : 
     dup(0), qos(0), retain(0), will(0), clean_session(0), topicid_type(0), all(0)
 {
 
@@ -84,7 +84,7 @@ void MQTTSNFlags::unpack(uint8_t value)
     clean_session = (all >> 2) & 0x1;
     topicid_type = all & 0x3;
     return 1;
-}
+}*/
 
 
 /**************** MQTTSNMessageAdvertise ***************/
@@ -201,7 +201,7 @@ uint8_t MQTTSNMessageConnect::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     /* fill in the message content */
-    header[offset++] = flags.pack();
+    header[offset++] = flags.all;
     header[offset++] = protocol_id;
     header[offset++] = duration >> 8;
     header[offset++] = duration & 0xff;
@@ -219,10 +219,10 @@ uint8_t MQTTSNMessageConnect::unpack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
-    flags.unpack(buffer[0]);
+    flags.all = buffer[0];
     protocol_id = buffer[1];
     duration = ((uint16_t)buffer[2] << 8) | buffer[3];
-    client_id = &buffer[4];
+    client_id = (char *)&buffer[4];
     client_id_len = buflen - fixed_len;
     
     return buflen;
@@ -359,7 +359,7 @@ uint8_t MQTTSNMessagePublish::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     /* fill in the message content */
-    header[offset++] = flags.pack();
+    header[offset++] = flags.all;
     header[offset++] = topic_id >> 8;
     header[offset++] = topic_id & 0xff;
     header[offset++] = msg_id >> 8;
@@ -378,7 +378,7 @@ uint8_t MQTTSNMessagePublish::unpack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
-    flags.unpack(buffer[0]);
+    flags.all = buffer[0];
     topic_id = ((uint16_t)buffer[1] << 8) | buffer[2];
     msg_id = ((uint16_t)buffer[3] << 8) | buffer[4];
     data = (buflen > fixed_len) ? &buffer[5] : NULL;
@@ -445,7 +445,7 @@ uint8_t MQTTSNMessageSubscribe::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     /* fill in the message content */
-    header[offset++] = flags.pack();
+    header[offset++] = flags.all;
     header[offset++] = msg_id >> 8;
     header[offset++] = msg_id & 0xff;
     
@@ -462,7 +462,7 @@ uint8_t MQTTSNMessageSubscribe::unpack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
-    flags.unpack(buffer[0]);
+    flags.all = buffer[0];
     msg_id = ((uint16_t)buffer[1] << 8) | buffer[2];
     topic_name = &buffer[3];
     topic_name_len = buflen - fixed_len;
@@ -487,7 +487,7 @@ uint8_t MQTTSNMessageUnsubscribe::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     /* fill in the message content */
-    header[offset++] = flags.pack();
+    header[offset++] = flags.all;
     header[offset++] = msg_id >> 8;
     header[offset++] = msg_id & 0xff;
     
@@ -504,7 +504,7 @@ uint8_t MQTTSNMessageUnsubscribe::unpack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
-    flags.unpack(buffer[0]);
+    flags.all = buffer[0];
     msg_id = ((uint16_t)buffer[1] << 8) | buffer[2];
     topic_name = &buffer[3];
     topic_name_len = buflen - fixed_len;
@@ -529,7 +529,7 @@ uint8_t MQTTSNMessageSuback::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     /* fill in the message content */
-    header[offset++] = flags.pack();
+    header[offset++] = flags.all;
     header[offset++] = topic_id >> 8;
     header[offset++] = topic_id & 0xff;
     header[offset++] = msg_id >> 8;
@@ -547,7 +547,7 @@ uint8_t MQTTSNMessageSuback::unpack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
-    flags.unpack(buffer[0]);
+    flags.all = buffer[0];
     topic_id = ((uint16_t)buffer[1] << 8) | buffer[2];
     msg_id = ((uint16_t)buffer[3] << 8) | buffer[4];
     return_code = buffer[5];

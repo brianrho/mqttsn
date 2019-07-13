@@ -66,7 +66,21 @@ class MQTTSNHeader {
 };
 
 /* flags */
-class MQTTSNFlags {
+typedef struct {
+    union {
+        uint8_t all;
+        struct {
+            unsigned topicid_type   : 2;
+            unsigned clean_session  : 1;
+            unsigned will           : 1;
+            unsigned retain         : 1;
+            unsigned qos            : 2;
+            unsigned dup            : 1;
+        };
+    };
+} MQTTSNFlags;
+
+/* class MQTTSNFlags {
     public:
     MQTTSNFlags(void);
     uint8_t pack(void);
@@ -74,7 +88,7 @@ class MQTTSNFlags {
     
     uint8_t dup, qos, retain, will, clean_session, topicid_type;
     uint8_t all;
-};
+}; */
 
 /* messages */
 class MQTTSNMessage {
