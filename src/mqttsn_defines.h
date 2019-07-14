@@ -16,6 +16,8 @@
 #define MQTTSN_HEADER_LEN           2
 #define MQTTSN_MAX_CLIENTID_LEN     23
 
+/* Unassigned topic IDs set to 0 for convenience,
+   Unsubscribed topics set to max value */
 #define MQTTSN_TOPIC_NOTASSIGNED    0x0000
 #define MQTTSN_TOPIC_UNSUBSCRIBED   0xFFFF
 
@@ -26,8 +28,10 @@
 #define MQTTSN_T_RETRY              5000UL
 #define MQTTSN_N_RETRY              3
 
-/* max delay between SEARCHGWs in milliseconds */
-#define MQTTSN_T_SEARCHGW           10000UL
+/* max delay before sending first SEARCHGW in milliseconds */
+#define MQTTSN_T_SEARCHGW           5000UL
+/* max delay between consecutive SEARCHGWs in milliseconds */ 
+#define MQTTSN_MAX_T_SEARCHGW       (30UL * 60 * 1000)
 
 /********** For gateways *************/
 

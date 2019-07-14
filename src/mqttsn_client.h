@@ -43,7 +43,7 @@ typedef struct {
 } MQTTSNSubTopic;
 
 /* template for publish message handler */
-typedef void (*MQTTSNPublishHandler)(const char * topic, uint8_t * data, uint8_t len, MQTTSNFlags * flags);
+typedef void (*MQTTSNPublishCallback)(const char * topic, uint8_t * data, uint8_t len, MQTTSNFlags * flags);
 
 class MQTTSNClient {
     public:
@@ -58,8 +58,8 @@ class MQTTSNClient {
         /* client loop, should be called regularly to handle tasks */
         bool loop(void);
         
-        /* send a SEARCHGW to find a gateway */
-        void discover(void);
+        /* start sending SEARCHGWs to find a gateway */
+        void start_discovery(void);
         
         /* return the total number of gateways added manually or discovered */
         uint8_t gateway_count(void);
@@ -94,8 +94,8 @@ class MQTTSNClient {
         /* Disconnect from the gateway, return true if the message was sent */
         bool disconnect(void);
         
-        /* Register a handler for all publish messages from the gateway */
-        void on_message(MQTTSNPublishHandler handler);
+        /* Register a user callback for all publish messages from the gateway */
+        void on_message(MQTTSNPublishCallback callback);
         
         /* return client status */
         MQTTSNState status(void);
@@ -104,7 +104,7 @@ class MQTTSNClient {
         void assign_handlers(void);
         void handle_messages(void);
         void inflight_handler(void);
-        void _register(MQTTSNPubTopic * topic);
+        void register_(MQTTSNPubTopic * topic);
         void subscribe(MQTTSNSubTopic * topic);
         bool ping(void);
         MQTTSNGWInfo * select_gateway(uint8_t gw_id);
@@ -128,7 +128,7 @@ class MQTTSNClient {
         void active_handler(void);
         
         /* message handlers jump table, used for dispatch */
-        void (MQTTSNClient::*msg_handlers[MQTTSN_NUM_MSG_TYPES])(void);
+        void (MQTTSNClient::*msg_handlers[MQTTSN_NUM_MSG_TYPES])(uint8_t *, uint8_t, MQTTSNAddress *);
         
         /* state handlers jump table, used for dispatch */
         void (MQTTSNClient::*state_handlers[MQTTSNState_NUM_STATES])(void);
@@ -143,7 +143,7 @@ class MQTTSNClient {
         uint16_t sub_topics_cnt, pub_topics_cnt;
         
         /* user-provided handler/callback for publish msgs */
-        MQTTSNPublishHandler publish_cb;
+        MQTTSNPublishCallback publish_cb;
         
         MQTTSNDevice * device;
         MQTTSNTransport * transport;
@@ -170,17 +170,20 @@ class MQTTSNClient {
         uint32_t last_in, last_out;
         
         /* for tracking PINGREQs */
-        bool ping_pending;
-        uint32_t ping_timer;
-        uint8_t ping_counter;
+        bool pingresp_pending;
+        uint32_t pingreq_timer;
+        uint8_t pingreq_counter;
         
         /* for tracking SEARCHGWs */
-        uint32_t searchgw_started, searchgw_interval;
-        bool searchgw_pending;
+        uint32_t gwinfo_timer, searchgw_interval;
+        bool gwinfo_pending;
         
         /* msg ID counter for transactions */
         uint16_t curr_msg_id;
         
+        /* temp buffer for holding serialized msgs */
+        uint8_t temp_msg[MQTTSN_MAX_MSG_LEN];
+        uint8_t temp_msg_len;
 };
 
 #endif

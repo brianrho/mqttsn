@@ -2,6 +2,7 @@
 #define MQTTSN_TRANSPORT_H_
 
 #include <stdint.h>
+#include "mqttsn_defines.h"
 
 /* For transport-related addresses, 
  * should be declared statically or explicitly zero-initialized

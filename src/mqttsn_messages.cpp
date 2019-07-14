@@ -111,7 +111,8 @@ uint8_t MQTTSNMessageAdvertise::pack(uint8_t * buffer, uint8_t buflen)
 uint8_t MQTTSNMessageAdvertise::unpack(uint8_t * buffer, uint8_t buflen) 
 {
     /* we expect exactly 3 bytes */
-    if (buflen != 3) {
+    uint8_t fixed_len = 1 + 2;
+    if (buflen != fixed_len) {
         return 0;
     }
     
@@ -174,13 +175,15 @@ uint8_t MQTTSNMessageGWInfo::pack(uint8_t * buffer, uint8_t buflen)
 
 uint8_t MQTTSNMessageGWInfo::unpack(uint8_t * buffer, uint8_t buflen) 
 {
-    /* we expect 1 bytes at least for gw_id, gw_addr is optional */
-    if (buflen == 0) {
+    /* we expect 1 byte at least */
+    uint8_t fixed_len = 1;
+    if (buflen < fixed_len) {
         return 0;
     }
     
     gw_id = buffer[0];
     gw_addr = (buflen > 1) ? &buffer[1] : NULL;
+    gw_addr_len = buflen - fixed_len;
     return buflen;
 }
 
@@ -189,7 +192,7 @@ uint8_t MQTTSNMessageGWInfo::unpack(uint8_t * buffer, uint8_t buflen)
 MQTTSNMessageConnect::MQTTSNMessageConnect(uint8_t duration) : 
     protocol_id(1), duration(duration), client_id(NULL), client_id_len(0)
 {
-    
+    flags.all = 0;
 }
 
 uint8_t MQTTSNMessageConnect::pack(uint8_t * buffer, uint8_t buflen) 
@@ -347,7 +350,7 @@ uint8_t MQTTSNMessageRegack::unpack(uint8_t * buffer, uint8_t buflen)
 MQTTSNMessagePublish::MQTTSNMessagePublish(uint16_t msg_id) : 
     topic_id(0), msg_id(msg_id), data(NULL), data_len(0)
 {
-    
+    flags.all = 0;
 }
 
 uint8_t MQTTSNMessagePublish::pack(uint8_t * buffer, uint8_t buflen) 
@@ -433,7 +436,7 @@ uint8_t MQTTSNMessagePuback::unpack(uint8_t * buffer, uint8_t buflen)
 MQTTSNMessageSubscribe::MQTTSNMessageSubscribe(uint16_t topic_id) : 
     msg_id(0), topic_name(NULL), topic_name_len(0)
 {
-    
+    flags.all = 0;
 }
 
 uint8_t MQTTSNMessageSubscribe::pack(uint8_t * buffer, uint8_t buflen) 
@@ -475,7 +478,7 @@ uint8_t MQTTSNMessageSubscribe::unpack(uint8_t * buffer, uint8_t buflen)
 MQTTSNMessageUnsubscribe::MQTTSNMessageUnsubscribe(uint16_t topic_id) : 
     msg_id(0), topic_name(NULL), topic_name_len(0)
 {
-    
+    flags.all = 0;
 }
 
 uint8_t MQTTSNMessageUnsubscribe::pack(uint8_t * buffer, uint8_t buflen) 
@@ -517,7 +520,7 @@ uint8_t MQTTSNMessageUnsubscribe::unpack(uint8_t * buffer, uint8_t buflen)
 MQTTSNMessageSuback::MQTTSNMessageSuback(uint8_t return_code) : 
     topic_id(0), msg_id(0), return_code(return_code)
 {
-    
+    flags.all = 0;
 }
 
 uint8_t MQTTSNMessageSuback::pack(uint8_t * buffer, uint8_t buflen) 
