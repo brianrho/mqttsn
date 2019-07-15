@@ -1,8 +1,12 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
 #ifndef MQTTSN_CLIENT_H_
 #define MQTTSN_CLIENT_H_
 
 #include "mqttsn_messages.h"
 #include "mqttsn_transport.h"
+#include "mqttsn_device.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -21,15 +25,16 @@ typedef enum {
 } MQTTSNState;
 
 /* The following structs should be declared statically
- * or explicitly zero-initialized, this is mainly for unused fields */
+ * or explicitly zero-initialized, this is mainly for unused fields: gw_id and tid */
 
 /* For holding gateway info */
 typedef struct {
     uint8_t gw_id;
     MQTTSNAddress gw_addr;
+    bool available;
 } MQTTSNGWInfo;
 
-/* For holding publish topics */
+/* For holding registered/publish topics */
 typedef struct {
     const char * name;
     uint16_t tid;
@@ -66,7 +71,7 @@ class MQTTSNClient {
         
         /* Connect a specific gateway,
          * returns true if the message was sent */
-        bool connect(uint8_t gw_id, MQTTSNFlags * flags = NULL, uint16_t duration = MQTTSN_DEFAULT_KEEPALIVE);
+        bool connect(uint8_t gw_id = 0, MQTTSNFlags * flags = NULL, uint16_t duration = MQTTSN_DEFAULT_KEEPALIVE);
         
         /* Register a list of topics with the gateway,
          * returns true if all topics in the list have been registered */
@@ -124,7 +129,7 @@ class MQTTSNClient {
         void searching_handler(void);
         void connecting_handler(void);
         void lost_handler(void);
-        void disconnected_handler(void);
+        //void disconnected_handler(void);
         void active_handler(void);
         
         /* message handlers jump table, used for dispatch */
@@ -155,12 +160,13 @@ class MQTTSNClient {
         
         /* keep track of connection to gw */
         bool connected;
+        MQTTSNFlags connect_flags;
         
         /* for storing unicast msgs expecting a reply */
         uint8_t msg_inflight[MQTTSN_MAX_MSG_LEN];
         uint8_t msg_inflight_len;
         uint32_t unicast_timer;
-        uint8_t unicast counter;
+        uint8_t unicast_counter;
         
         /* keepalive and (keepalive * 1.5) */
         uint32_t keepalive_interval;

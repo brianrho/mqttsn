@@ -93,8 +93,8 @@ typedef struct {
 /* messages */
 class MQTTSNMessage {
     public:
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen) = 0;
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen) = 0;
+    uint8_t pack(uint8_t * buffer, uint8_t buflen) {}
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen) {}
     
     MQTTSNHeader header;
 };
@@ -102,8 +102,8 @@ class MQTTSNMessage {
 class MQTTSNMessageAdvertise : public MQTTSNMessage {
     public:
     MQTTSNMessageAdvertise(uint8_t gw_id = 0);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint8_t gw_id;
     uint16_t duration;
@@ -111,9 +111,9 @@ class MQTTSNMessageAdvertise : public MQTTSNMessage {
 
 class MQTTSNMessageSearchGW : public MQTTSNMessage {
     public:
-    MQTTSNMessageAdvertise(uint8_t radius = 0);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    MQTTSNMessageSearchGW(uint8_t radius = 0);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint8_t radius;
 };
@@ -121,8 +121,8 @@ class MQTTSNMessageSearchGW : public MQTTSNMessage {
 class MQTTSNMessageGWInfo : public MQTTSNMessage {
     public:
     MQTTSNMessageGWInfo(uint8_t gw_id = 0);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint8_t gw_id;
     uint8_t * gw_addr;
@@ -132,8 +132,8 @@ class MQTTSNMessageGWInfo : public MQTTSNMessage {
 class MQTTSNMessageConnect : public MQTTSNMessage {
     public:
     MQTTSNMessageConnect(uint16_t duration = MQTTSN_DEFAULT_KEEPALIVE);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     MQTTSNFlags flags;
     uint8_t protocol_id;
@@ -145,8 +145,8 @@ class MQTTSNMessageConnect : public MQTTSNMessage {
 class MQTTSNMessageConnack : public MQTTSNMessage {
     public:
     MQTTSNMessageConnack(uint8_t return_code = MQTTSN_RC_ACCEPTED);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint8_t return_code;
 };
@@ -154,8 +154,8 @@ class MQTTSNMessageConnack : public MQTTSNMessage {
 class MQTTSNMessageRegister : public MQTTSNMessage {
     public:
     MQTTSNMessageRegister(uint16_t topic_id = 0);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t topic_id;
     uint16_t msg_id;
@@ -166,8 +166,8 @@ class MQTTSNMessageRegister : public MQTTSNMessage {
 class MQTTSNMessageRegack : public MQTTSNMessage {
     public:
     MQTTSNMessageRegack(uint8_t return_code = MQTTSN_RC_ACCEPTED);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t topic_id;
     uint16_t msg_id;
@@ -177,8 +177,8 @@ class MQTTSNMessageRegack : public MQTTSNMessage {
 class MQTTSNMessagePublish : public MQTTSNMessage {
     public:
     MQTTSNMessagePublish(uint16_t msg_id = 0);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t topic_id;
     uint16_t msg_id;
@@ -190,8 +190,8 @@ class MQTTSNMessagePublish : public MQTTSNMessage {
 class MQTTSNMessagePuback : public MQTTSNMessage {
     public:
     MQTTSNMessagePuback(uint8_t return_code = MQTTSN_RC_ACCEPTED);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t topic_id;
     uint16_t msg_id;
@@ -201,8 +201,8 @@ class MQTTSNMessagePuback : public MQTTSNMessage {
 class MQTTSNMessageSubscribe : public MQTTSNMessage {
     public:
     MQTTSNMessageSubscribe(void);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t msg_id;
     MQTTSNFlags flags;
@@ -213,8 +213,8 @@ class MQTTSNMessageSubscribe : public MQTTSNMessage {
 class MQTTSNMessageUnsubscribe : public MQTTSNMessage {
     public:
     MQTTSNMessageUnsubscribe(void);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t msg_id;
     MQTTSNFlags flags;
@@ -225,8 +225,8 @@ class MQTTSNMessageUnsubscribe : public MQTTSNMessage {
 class MQTTSNMessageSuback : public MQTTSNMessage {
     public:
     MQTTSNMessageSuback(uint8_t return_code = MQTTSN_RC_ACCEPTED);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t topic_id;
     uint16_t msg_id;
@@ -237,8 +237,8 @@ class MQTTSNMessageSuback : public MQTTSNMessage {
 class MQTTSNMessageUnsuback : public MQTTSNMessage {
     public:
     MQTTSNMessageUnsuback(void);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t msg_id;
 };
@@ -246,8 +246,8 @@ class MQTTSNMessageUnsuback : public MQTTSNMessage {
 class MQTTSNMessagePingreq : public MQTTSNMessage {
     public:
     MQTTSNMessagePingreq(void);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint8_t * client_id;
     uint8_t client_id_len;
@@ -256,15 +256,15 @@ class MQTTSNMessagePingreq : public MQTTSNMessage {
 class MQTTSNMessagePingresp : public MQTTSNMessage {
     public:
     MQTTSNMessagePingresp(void);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
 };
 
 class MQTTSNMessageDisconnect : public MQTTSNMessage {
     public:
     MQTTSNMessageDisconnect(void);
-    virtual uint8_t pack(uint8_t * buffer, uint8_t buflen);
-    virtual uint8_t unpack(uint8_t * buffer, uint8_t buflen);
+    uint8_t pack(uint8_t * buffer, uint8_t buflen);
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen);
     
     uint16_t duration;
 };

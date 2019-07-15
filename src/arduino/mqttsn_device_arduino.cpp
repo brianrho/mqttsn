@@ -1,3 +1,6 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
 #if defined(ARDUINO)
 
 #include "mqttsn_device_arduino.h"

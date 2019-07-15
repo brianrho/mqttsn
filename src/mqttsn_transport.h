@@ -1,17 +1,19 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
 #ifndef MQTTSN_TRANSPORT_H_
 #define MQTTSN_TRANSPORT_H_
 
 #include <stdint.h>
 #include "mqttsn_defines.h"
 
-/* For transport-related addresses, 
- * should be declared statically or explicitly zero-initialized
- */
+/* For transport-related addresses */
 typedef struct {
     uint8_t bytes[MQTTSN_MAX_ADDR_LEN];
     uint8_t len;
 } MQTTSNAddress;
 
+/* interface for any transport */
 class MQTTSNTransport {
     public:
         

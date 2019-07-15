@@ -2,24 +2,14 @@
  * DIstributed under the MIT License */
  
 #include "mqttsn_messages.h"
+#include "mqttsn_defines.h"
 
 #include <stdint.h>
 #include <string.h>
 
-static void reverse_bytes(void *start, uint16_t size) {
-    uint8_t *lo = (uint8_t *)start;
-    uint8_t *hi = (uint8_t *)start + size - 1;
-    uint8_t swap;
-    while (lo < hi) {
-        swap = *lo;
-        *lo++ = *hi;
-        *hi-- = swap;
-    }
-}
-
 /**************** MQTTSNHeader ***************/
 
-MQTTSNHeader::MQTTSNHeader(uint8_t msg_type = NULL) : length(0), msg_type(msg_type)
+MQTTSNHeader::MQTTSNHeader(uint8_t msg_type) : length(0), msg_type(msg_type)
 {
 
 }
@@ -96,15 +86,15 @@ MQTTSNMessageAdvertise::MQTTSNMessageAdvertise(uint8_t gw_id) : gw_id(gw_id), du
 
 uint8_t MQTTSNMessageAdvertise::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_ADVERTISE);
-    offset = header.pack(buffer, buflen, 3);
+    header.msg_type = MQTTSN_ADVERTISE;
+    uint8_t offset = header.pack(buffer, buflen, 3);
     if (!offset) {
         return 0;
     }
     
-    header[offset++] = gw_id;
-    header[offset++] = duration >> 8;
-    header[offset++] = duration & 0xff;
+    buffer[offset++] = gw_id;
+    buffer[offset++] = duration >> 8;
+    buffer[offset++] = duration & 0xff;
     return offset;
 }
 
@@ -130,13 +120,13 @@ MQTTSNMessageSearchGW::MQTTSNMessageSearchGW(uint8_t radius) : radius(radius)
 
 uint8_t MQTTSNMessageSearchGW::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_SEARCHGW);
-    offset = header.pack(buffer, buflen, 1);
+    header.msg_type = MQTTSN_SEARCHGW;
+    uint8_t offset = header.pack(buffer, buflen, 1);
     if (!offset) {
         return 0;
     }
     
-    header[offset++] = radius;
+    buffer[offset++] = radius;
     return offset;
 }
 
@@ -161,13 +151,13 @@ MQTTSNMessageGWInfo::MQTTSNMessageGWInfo(uint8_t gw_id) :
 
 uint8_t MQTTSNMessageGWInfo::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_GWINFO);
-    offset = header.pack(buffer, buflen, 1 + gw_addr_len);
+    header.msg_type = MQTTSN_GWINFO;
+    uint8_t offset = header.pack(buffer, buflen, 1 + gw_addr_len);
     if (!offset) {
         return 0;
     }
     
-    header[offset++] = gw_id;
+    buffer[offset++] = gw_id;
     memcpy(&buffer[offset], gw_addr, gw_addr_len);
     offset += gw_addr_len;
     return offset;
@@ -189,7 +179,7 @@ uint8_t MQTTSNMessageGWInfo::unpack(uint8_t * buffer, uint8_t buflen)
 
 /**************** MQTTSNMessageConnect ***************/
 
-MQTTSNMessageConnect::MQTTSNMessageConnect(uint8_t duration) : 
+MQTTSNMessageConnect::MQTTSNMessageConnect(uint16_t duration) : 
     protocol_id(1), duration(duration), client_id(NULL), client_id_len(0)
 {
     flags.all = 0;
@@ -197,17 +187,17 @@ MQTTSNMessageConnect::MQTTSNMessageConnect(uint8_t duration) :
 
 uint8_t MQTTSNMessageConnect::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_CONNECT);
-    offset = header.pack(buffer, buflen, 1 + 1 + 2 + client_id_len);
+    header.msg_type = MQTTSN_CONNECT;
+    uint8_t offset = header.pack(buffer, buflen, 1 + 1 + 2 + client_id_len);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = flags.all;
-    header[offset++] = protocol_id;
-    header[offset++] = duration >> 8;
-    header[offset++] = duration & 0xff;
+    buffer[offset++] = flags.all;
+    buffer[offset++] = protocol_id;
+    buffer[offset++] = duration >> 8;
+    buffer[offset++] = duration & 0xff;
     
     memcpy(&buffer[offset], client_id, client_id_len);
     offset += client_id_len;
@@ -225,7 +215,7 @@ uint8_t MQTTSNMessageConnect::unpack(uint8_t * buffer, uint8_t buflen)
     flags.all = buffer[0];
     protocol_id = buffer[1];
     duration = ((uint16_t)buffer[2] << 8) | buffer[3];
-    client_id = (char *)&buffer[4];
+    client_id = &buffer[4];
     client_id_len = buflen - fixed_len;
     
     return buflen;
@@ -240,13 +230,13 @@ MQTTSNMessageConnack::MQTTSNMessageConnack(uint8_t return_code) : return_code(re
 
 uint8_t MQTTSNMessageConnack::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_CONNACK);
-    offset = header.pack(buffer, buflen, 1);
+    header.msg_type = MQTTSN_CONNACK;
+    uint8_t offset = header.pack(buffer, buflen, 1);
     if (!offset) {
         return 0;
     }
     
-    header[offset++] = return_code;
+    buffer[offset++] = return_code;
     return offset;
 }
 
@@ -271,17 +261,17 @@ MQTTSNMessageRegister::MQTTSNMessageRegister(uint16_t topic_id) :
 
 uint8_t MQTTSNMessageRegister::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_REGISTER);
-    offset = header.pack(buffer, buflen, 2 + 2 + topic_name_len);
+    header.msg_type = MQTTSN_REGISTER;
+    uint8_t offset = header.pack(buffer, buflen, 2 + 2 + topic_name_len);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = topic_id >> 8;
-    header[offset++] = topic_id & 0xff;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
+    buffer[offset++] = topic_id >> 8;
+    buffer[offset++] = topic_id & 0xff;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
     
     memcpy(&buffer[offset], topic_name, topic_name_len);
     offset += topic_name_len;
@@ -314,18 +304,18 @@ MQTTSNMessageRegack::MQTTSNMessageRegack(uint8_t return_code) :
 
 uint8_t MQTTSNMessageRegack::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_REGACK);
-    offset = header.pack(buffer, buflen, 2 + 2 + 1);
+    header.msg_type = MQTTSN_REGACK;
+    uint8_t offset = header.pack(buffer, buflen, 2 + 2 + 1);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = topic_id >> 8;
-    header[offset++] = topic_id & 0xff;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
-    header[offset++] = return_code;
+    buffer[offset++] = topic_id >> 8;
+    buffer[offset++] = topic_id & 0xff;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
+    buffer[offset++] = return_code;
     
     return offset;
 }
@@ -355,18 +345,18 @@ MQTTSNMessagePublish::MQTTSNMessagePublish(uint16_t msg_id) :
 
 uint8_t MQTTSNMessagePublish::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_PUBLISH);
-    offset = header.pack(buffer, buflen, 1 + 2 + 2 + data_len);
+    header.msg_type = MQTTSN_PUBLISH;
+    uint8_t offset = header.pack(buffer, buflen, 1 + 2 + 2 + data_len);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = flags.all;
-    header[offset++] = topic_id >> 8;
-    header[offset++] = topic_id & 0xff;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
+    buffer[offset++] = flags.all;
+    buffer[offset++] = topic_id >> 8;
+    buffer[offset++] = topic_id & 0xff;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
     
     memcpy(&buffer[offset], data, data_len);
     offset += data_len;
@@ -400,18 +390,18 @@ MQTTSNMessagePuback::MQTTSNMessagePuback(uint8_t return_code) :
 
 uint8_t MQTTSNMessagePuback::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_PUBACK);
-    offset = header.pack(buffer, buflen, 2 + 2 + 1);
+    header.msg_type = MQTTSN_PUBACK;
+    uint8_t offset = header.pack(buffer, buflen, 2 + 2 + 1);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = topic_id >> 8;
-    header[offset++] = topic_id & 0xff;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
-    header[offset++] = return_code;
+    buffer[offset++] = topic_id >> 8;
+    buffer[offset++] = topic_id & 0xff;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
+    buffer[offset++] = return_code;
     
     return offset;
 }
@@ -433,7 +423,7 @@ uint8_t MQTTSNMessagePuback::unpack(uint8_t * buffer, uint8_t buflen)
 
 /**************** MQTTSNMessageSubscribe ***************/
 
-MQTTSNMessageSubscribe::MQTTSNMessageSubscribe(uint16_t topic_id) : 
+MQTTSNMessageSubscribe::MQTTSNMessageSubscribe(void) : 
     msg_id(0), topic_name(NULL), topic_name_len(0)
 {
     flags.all = 0;
@@ -441,16 +431,16 @@ MQTTSNMessageSubscribe::MQTTSNMessageSubscribe(uint16_t topic_id) :
 
 uint8_t MQTTSNMessageSubscribe::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_SUBSCRIBE);
-    offset = header.pack(buffer, buflen, 1 + 2 + topic_name_len);
+    header.msg_type = MQTTSN_SUBSCRIBE;
+    uint8_t offset = header.pack(buffer, buflen, 1 + 2 + topic_name_len);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = flags.all;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
+    buffer[offset++] = flags.all;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
     
     memcpy(&buffer[offset], topic_name, topic_name_len);
     offset += topic_name_len;
@@ -475,7 +465,7 @@ uint8_t MQTTSNMessageSubscribe::unpack(uint8_t * buffer, uint8_t buflen)
 
 /**************** MQTTSNMessageUnsubscribe ***************/
 
-MQTTSNMessageUnsubscribe::MQTTSNMessageUnsubscribe(uint16_t topic_id) : 
+MQTTSNMessageUnsubscribe::MQTTSNMessageUnsubscribe(void) : 
     msg_id(0), topic_name(NULL), topic_name_len(0)
 {
     flags.all = 0;
@@ -483,16 +473,16 @@ MQTTSNMessageUnsubscribe::MQTTSNMessageUnsubscribe(uint16_t topic_id) :
 
 uint8_t MQTTSNMessageUnsubscribe::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_UNSUBSCRIBE);
-    offset = header.pack(buffer, buflen, 1 + 2 + topic_name_len);
+    header.msg_type = MQTTSN_UNSUBSCRIBE;
+    uint8_t offset = header.pack(buffer, buflen, 1 + 2 + topic_name_len);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = flags.all;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
+    buffer[offset++] = flags.all;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
     
     memcpy(&buffer[offset], topic_name, topic_name_len);
     offset += topic_name_len;
@@ -525,19 +515,19 @@ MQTTSNMessageSuback::MQTTSNMessageSuback(uint8_t return_code) :
 
 uint8_t MQTTSNMessageSuback::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_REGACK);
-    offset = header.pack(buffer, buflen, 1 + 2 + 2 + 1);
+    header.msg_type = MQTTSN_REGACK;
+    uint8_t offset = header.pack(buffer, buflen, 1 + 2 + 2 + 1);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = flags.all;
-    header[offset++] = topic_id >> 8;
-    header[offset++] = topic_id & 0xff;
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
-    header[offset++] = return_code;
+    buffer[offset++] = flags.all;
+    buffer[offset++] = topic_id >> 8;
+    buffer[offset++] = topic_id & 0xff;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
+    buffer[offset++] = return_code;
     
     return offset;
 }
@@ -560,22 +550,22 @@ uint8_t MQTTSNMessageSuback::unpack(uint8_t * buffer, uint8_t buflen)
 
 /**************** MQTTSNMessageUnsuback ***************/
 
-MQTTSNMessageUnsuback::MQTTSNMessageUnsuback(uint16_t topic_id) : msg_id(0)
+MQTTSNMessageUnsuback::MQTTSNMessageUnsuback(void) : msg_id(0)
 {
     
 }
 
 uint8_t MQTTSNMessageUnsuback::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_UNSUBACK);
-    offset = header.pack(buffer, buflen, 2);
+    header.msg_type = MQTTSN_UNSUBACK;
+    uint8_t offset = header.pack(buffer, buflen, 2);
     if (!offset) {
         return 0;
     }
     
     /* fill in the message content */
-    header[offset++] = msg_id >> 8;
-    header[offset++] = msg_id & 0xff;
+    buffer[offset++] = msg_id >> 8;
+    buffer[offset++] = msg_id & 0xff;
     
     return offset;
 }
@@ -603,8 +593,8 @@ MQTTSNMessagePingreq::MQTTSNMessagePingreq(void) :
 
 uint8_t MQTTSNMessagePingreq::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_PINGREQ);
-    offset = header.pack(buffer, buflen, client_id_len);
+    header.msg_type = MQTTSN_PINGREQ;
+    uint8_t offset = header.pack(buffer, buflen, client_id_len);
     if (!offset) {
         return 0;
     }
@@ -639,8 +629,8 @@ MQTTSNMessagePingresp::MQTTSNMessagePingresp(void)
 
 uint8_t MQTTSNMessagePingresp::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_PINGRESP);
-    offset = header.pack(buffer, buflen);
+    header.msg_type = MQTTSN_PINGRESP;
+    uint8_t offset = header.pack(buffer, buflen);
     if (!offset) {
         return 0;
     }
@@ -656,22 +646,22 @@ uint8_t MQTTSNMessagePingresp::unpack(uint8_t * buffer, uint8_t buflen)
 /**************** MQTTSNMessageDisconnect ***************/
 
 /* only used when there's a non-zero sleep duration */
-MQTTSNMessageDisconnect::MQTTSNMessageDisconnect(uint8_t gw_id) : duration(0)
+MQTTSNMessageDisconnect::MQTTSNMessageDisconnect(void) : duration(0)
 {
     
 }
 
 uint8_t MQTTSNMessageDisconnect::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header = MQTTSNHeader(MQTTSN_DISCONNECT);
-    offset = header.pack(buffer, buflen, duration ? 2 : 0);
+    header.msg_type = MQTTSN_DISCONNECT;
+    uint8_t offset = header.pack(buffer, buflen, duration ? 2 : 0);
     if (!offset) {
         return 0;
     }
     
     if (duration) {
-        header[offset++] = duration >> 8;
-        header[offset++] = duration & 0xff;
+        buffer[offset++] = duration >> 8;
+        buffer[offset++] = duration & 0xff;
     }
     
     return offset;
