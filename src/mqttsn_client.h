@@ -67,7 +67,7 @@ class MQTTSNClient {
         void start_discovery(void);
         
         /* return the total number of gateways added manually or discovered */
-        uint8_t gateway_count(void);
+        uint8_t gateway_count(void) const;
         
         /* Connect a specific gateway,
          * returns true if the message was sent */
@@ -94,16 +94,16 @@ class MQTTSNClient {
         bool transaction_pending(void);
         
         /* check if we're connected to a gateway */
-        bool is_connected(void);
+        bool is_connected(void) const;
         
         /* Disconnect from the gateway, return true if the message was sent */
         bool disconnect(void);
         
         /* Register a user callback for all publish messages from the gateway */
-        void on_message(MQTTSNPublishCallback callback);
+        void on_message(MQTTSNPublishCallback callback) const;
         
         /* return client status */
-        MQTTSNState status(void);
+        MQTTSNState status(void) const;
         
     private:
         void assign_handlers(void);
@@ -168,7 +168,7 @@ class MQTTSNClient {
         uint32_t unicast_timer;
         uint8_t unicast_counter;
         
-        /* keepalive and (keepalive * 1.5) */
+        /* keepalive and (keepalive * tolerance%) */
         uint32_t keepalive_interval;
         uint32_t keepalive_timeout;
         

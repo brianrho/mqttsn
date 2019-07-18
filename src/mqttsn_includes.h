@@ -15,11 +15,11 @@
     
 /* ignore */
 #if defined(MQTTSN_INCLUDE_DEVICE_ARDUINO)
-    #include "arduino/mqttsn_device_arduino.h"
+    #include "device/mqttsn_device_arduino.h"
 #endif
 
 #if defined(MQTTSN_INCLUDE_TRANSPORT_HC12)
-    #include "arduino/mqttsn_transport_hc12.h"
+    #include "transport/mqttsn_transport_hc12.h"
 #endif
 
 #include "mqttsn_defines.h"

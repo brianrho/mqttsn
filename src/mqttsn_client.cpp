@@ -28,7 +28,7 @@ MQTTSNClient::MQTTSNClient(MQTTSNDevice * device, MQTTSNTransport * transport) :
 bool MQTTSNClient::begin(const char * client_id)
 {
     if (!client_id || strlen(client_id) > MQTTSN_MAX_CLIENTID_LEN) {
-        //MQTTSN_ERROR_PRINTLN("Wrong Client ID length.");
+        MQTTSN_ERROR_PRINTLN("::Invalid Client ID");
         return false;
     }
     
@@ -105,7 +105,7 @@ void MQTTSNClient::start_discovery(void)
     gwinfo_pending = true;
     searchgw_interval = device->get_random(0, MQTTSN_T_SEARCHGW);
     state = MQTTSNState_SEARCHING;
-    MQTTSN_INFO_PRINTLN("Starting SEARCHGW delay.");
+    MQTTSN_INFO_PRINTLN("::Starting SEARCHGW delay");
 }
 
 uint8_t MQTTSNClient::gateway_count(void)
@@ -379,8 +379,8 @@ bool MQTTSNClient::unsubscribe(const char * topic, MQTTSNFlags * flags)
 
 bool MQTTSNClient::ping(void)
 {
-    /* if we're not connected or theres a pending pingresp */
-    if (!connected || pingresp_pending) {
+    /* if we're not connected */
+    if (!connected) {
         return false;
     }
     
