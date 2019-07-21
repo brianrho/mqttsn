@@ -33,7 +33,7 @@
 #define MQTTSN_DEFAULT_KEEPALIVE_MS     (MQTTSN_DEFAULT_KEEPALIVE * 1000UL)
 
 /* timeout for all unicasted messages to GW in ms */
-#define MQTTSN_T_RETRY                  10000UL
+#define MQTTSN_T_RETRY                  5000UL
 #define MQTTSN_N_RETRY                  3
 
 /* max delay before sending first SEARCHGW in milliseconds */

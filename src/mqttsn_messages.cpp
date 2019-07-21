@@ -158,6 +158,10 @@ uint8_t MQTTSNMessageGWInfo::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     buffer[offset++] = gw_id;
+
+    if (gw_addr == NULL || gw_addr_len == 0)
+    	return offset;
+
     memcpy(&buffer[offset], gw_addr, gw_addr_len);
     offset += gw_addr_len;
     return offset;

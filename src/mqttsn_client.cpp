@@ -357,6 +357,8 @@ void MQTTSNClient::subscribe(MQTTSNSubTopic * topic)
 
 bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
 {
+	MQTTSN_INFO_PRINTLN("Sending UNSUBSCRIBE.");
+
     /* if we're not connected or theres a pending reply */
     if (!connected || msg_inflight_len) {
         return false;
@@ -364,10 +366,13 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
 
     MQTTSNMessageUnsubscribe msg;
 
-    MQTTSNSubTopic * topic;
+    MQTTSNSubTopic * topic = NULL;
     /* check our list of subs for this topic */
     for (int i = 0; i < sub_topics_cnt; i++) {
-        if (strcmp(sub_topics[i].name, topic_name) == 0) {
+        if (strcmp(sub_topics[i].name, topic_name) == 0 &&
+        		sub_topics[i].tid != MQTTSN_TOPIC_UNSUBSCRIBED &&
+				sub_topics[i].tid != MQTTSN_TOPIC_NOTASSIGNED)
+        {
             topic = &sub_topics[i];
             break;
         }
@@ -377,7 +382,10 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
     if (topic == NULL)
         return false;
         
+    /* delete it, dont bother waiting for UNSUBACK */
     topic->tid = MQTTSN_TOPIC_UNSUBSCRIBED;
+    topic->flags.all = 0;
+
     msg.topic_name = (uint8_t *)topic_name;
     msg.topic_name_len = strlen(topic_name);
     if (msg.topic_name_len > MQTTSN_MAX_TOPICNAME_LEN)
@@ -403,6 +411,7 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
 
     /* advance for next transaction */
     curr_msg_id++;
+    MQTTSN_INFO_PRINTLN("UNSUBSCRIBE sent.");
     return true;
 }
 
@@ -503,7 +512,6 @@ void MQTTSNClient::inflight_handler(void)
         return;
     }
     
-    //MQTTSN_INFO_PRINTLN("In flight.");
     /* do we still have time? */
     if (device->get_millis() - unicast_timer < MQTTSN_T_RETRY) {
         return;
@@ -543,10 +551,13 @@ void MQTTSNClient::handle_advertise(uint8_t * data, uint8_t data_len, MQTTSNAddr
     }
     
     /* find a free slot, add the new GW info */
+    MQTTSNGWInfo * gateway;
     for (int i = 0; i < gateways_capacity; i++) {
-        if (gateways[i].gw_id == 0) {
-            gateways[i].gw_id = msg.gw_id;
-            memcpy(&gateways[i].gw_addr, src, sizeof(MQTTSNAddress));
+    	gateway = &gateways[i];
+        if (gateway->gw_id == 0) {
+            gateway->gw_id = msg.gw_id;
+            memcpy(gateway->gw_addr.bytes, src->bytes, src->len);
+			gateway->gw_addr.len = src->len;
             return;
         }
     }
@@ -568,6 +579,8 @@ void MQTTSNClient::handle_searchgw(uint8_t * data, uint8_t data_len, MQTTSNAddre
 
 void MQTTSNClient::handle_gwinfo(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+	MQTTSN_INFO_PRINTLN("Got GWINFO.");
+
     MQTTSNMessageGWInfo msg;
     if (!msg.unpack(data, data_len))
         return;
@@ -580,16 +593,28 @@ void MQTTSNClient::handle_gwinfo(uint8_t * data, uint8_t data_len, MQTTSNAddress
     }
     
     /* else add it to our list */
+    MQTTSNGWInfo * gateway;
     for (int i = 0; i < gateways_capacity; i++) {
-        if (gateways[i].gw_id == 0) {
-            gateways[i].gw_id = msg.gw_id;
+    	gateway = &gateways[i];
+
+        if (gateway->gw_id == 0) {
+        	gateway->gw_id = msg.gw_id;
             
             /* check if a gw or client sent the GWINFO */
-            if (msg.gw_addr != NULL && msg.gw_addr_len <= MQTTSN_MAX_ADDR_LEN) {
-                memcpy(gateways[i].gw_addr.bytes, msg.gw_addr, msg.gw_addr_len);
+            if (msg.gw_addr != NULL) {
+            	if (msg.gw_addr_len != 0 && msg.gw_addr_len <= MQTTSN_MAX_ADDR_LEN) {
+					MQTTSN_INFO_PRINTLN("GWINFO sent by client.");
+					memcpy(gateway->gw_addr.bytes, msg.gw_addr, msg.gw_addr_len);
+					gateway->gw_addr.len = msg.gw_addr_len;
+            	}
+            	else {
+            		break;
+            	}
             }
             else {
-                memcpy(gateways[i].gw_addr.bytes, src->bytes, src->len);
+            	MQTTSN_INFO_PRINTLN("GWINFO sent by gateway.");
+                memcpy(gateway->gw_addr.bytes, src->bytes, src->len);
+                gateway->gw_addr.len = src->len;
             }
             break;
         }
@@ -610,8 +635,6 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
     
     if (msg_inflight_len == 0)
         return;
-    
-    MQTTSN_INFO_PRINTLN("Handling CONNACK.");
     
     /* parse our stored msg */
     MQTTSNHeader header;
@@ -656,7 +679,7 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
     for (int i = 0; i < sub_topics_cnt; i++) {
         sub_topics[i].tid = 0;
     }
-    
+
     MQTTSN_INFO_PRINTLN("Connected.");
 }
 
@@ -843,22 +866,9 @@ void MQTTSNClient::handle_unsuback(uint8_t * data, uint8_t data_len, MQTTSNAddre
         return;
     }
     
-    /* now unpack the reply */
+    /* now unpack the reply, make sure msg IDs match */
     MQTTSNMessageUnsuback msg;
     if (!msg.unpack(data, data_len) || msg.msg_id != sent.msg_id)
-        return;
-        
-    /* check our list and delete the ID */
-    bool topic_found = false;
-    for (int i = 0; i < sub_topics_cnt; i++) {
-        if (strcmp(sub_topics[i].name, (char *)sent.topic_name) == 0) {
-            sub_topics[i].tid = MQTTSN_TOPIC_UNSUBSCRIBED;
-            topic_found = true;
-            break;
-        }
-    }
-
-    if (!topic_found)
         return;
 
     msg_inflight_len = 0;
@@ -886,15 +896,21 @@ void MQTTSNClient::handle_pingresp(uint8_t * data, uint8_t data_len, MQTTSNAddre
 void MQTTSNClient::searching_handler(void)
 {
     /* if we're still waiting for a GWINFO and the wait interval is over */
-    if (gwinfo_pending && (uint32_t)(device->get_millis() - gwinfo_timer) >= searchgw_interval) {
-        /* broadcast it and start waiting again */
-        MQTTSNMessageSearchGW msg;
-        out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
-        transport->broadcast(out_msg, out_msg_len);
-        gwinfo_timer = device->get_millis();
-        
-        /* increase exponentially */
-        searchgw_interval = (searchgw_interval < MQTTSN_MAX_T_SEARCHGW) ? searchgw_interval * 2 : MQTTSN_MAX_T_SEARCHGW;
+    if (gwinfo_pending) {
+    	if ((uint32_t)(device->get_millis() - gwinfo_timer) >= searchgw_interval) {
+			/* broadcast it and start waiting again */
+			MQTTSNMessageSearchGW msg;
+			out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
+			transport->broadcast(out_msg, out_msg_len);
+			gwinfo_timer = device->get_millis();
+
+			/* increase exponentially */
+			searchgw_interval = (searchgw_interval < MQTTSN_MAX_T_SEARCHGW) ? searchgw_interval * 2 : MQTTSN_MAX_T_SEARCHGW;
+    	}
+    }
+    else {
+    	/* nothing left to do here */
+    	state = MQTTSNState_DISCONNECTED;
     }
 }
 

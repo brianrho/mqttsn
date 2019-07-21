@@ -20,15 +20,15 @@
 #else
     
     #include <stdio.h>
-    #define MQTTSN_ERROR_PRINT(...)             printf(__VA_ARGS__)
-    #define MQTTSN_ERROR_PRINTLN(fmt, ...)      printf(fmt "\r\n", ##__VA_ARGS__)
+    #define MQTTSN_ERROR_PRINT(fmt, ...)           	printf(fmt, ##__VA_ARGS__)
+    #define MQTTSN_ERROR_PRINTLN(fmt, ...)      	printf("[+]" fmt "\r\n", ##__VA_ARGS__)
     
     #if (MQTTSN_DEBUG_LEVEL == 1)        
         #define MQTTSN_INFO_PRINT(...)
         #define MQTTSN_INFO_PRINTLN(...)
     #else
-        #define MQTTSN_INFO_PRINT(...)          printf(__VA_ARGS__)
-        #define MQTTSN_INFO_PRINTLN(fmt, ...)   printf(fmt "\r\n", ##__VA_ARGS__)
+        #define MQTTSN_INFO_PRINT(fmt, ...)       	printf(fmt, ##__VA_ARGS__)
+        #define MQTTSN_INFO_PRINTLN(fmt, ...)   	printf("[+]" fmt "\r\n", ##__VA_ARGS__)
     #endif
 
 #endif

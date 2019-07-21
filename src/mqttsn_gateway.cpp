@@ -37,7 +37,7 @@ bool MQTTSNInstance::register_(uint8_t * cid, uint8_t cid_len, MQTTSNAddress * a
     for (int i = 0; i < address.len; i++) {
         MQTTSN_INFO_PRINT("%X ", address.bytes[i]);
     }
-    MQTTSN_INFO_PRINTLN();
+    MQTTSN_INFO_PRINT("\r\n");
         
     keepalive_interval = duration * 1000UL;
     keepalive_timeout = (keepalive_interval > 60000) ? keepalive_interval * 1.1 : keepalive_interval * 1.5;
@@ -474,7 +474,11 @@ void MQTTSNGateway::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddre
         MQTTSN_INFO_PRINTLN("Publishing to broker.");
     }
     else {
-        /* else we're on our own, add the msg to our queue
+        /* if nobody is subbed to this topic */
+        if (!mapping->subbed)
+            return;
+            
+        /* we're on our own, add the msg to our queue
            so we'll distribute it locally as broker */
         msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
         pub_fifo.enqueue(out_msg);
@@ -533,6 +537,8 @@ void MQTTSNGateway::handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNAdd
 
 void MQTTSNGateway::handle_unsubscribe(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+    MQTTSN_INFO_PRINTLN("Got UNSUBSCRIBE.");
+    
     /* check that we know this client */
     MQTTSNInstance * clnt = get_client(src);
     if (clnt == NULL)
@@ -582,7 +588,6 @@ void MQTTSNGateway::handle_pingreq(uint8_t * data, uint8_t data_len, MQTTSNAddre
     
     /* make sure we have something to parse */
     if (data_len != 0) {
-        MQTTSN_INFO_PRINTLN("Inside PINGREQ.");
         MQTTSNMessagePingreq msg;
         if (!msg.unpack(data, data_len))
             return;
@@ -593,14 +598,13 @@ void MQTTSNGateway::handle_pingreq(uint8_t * data, uint8_t data_len, MQTTSNAddre
     /* now send our reply */
     MQTTSNMessagePingresp reply;
     out_msg_len = reply.pack(out_msg, MQTTSN_MAX_MSG_LEN);
-    //while (1) {
-    //device->delay_millis(1000);
     transport->write_packet(out_msg, out_msg_len, src);
-    //}
 }
 
 void MQTTSNGateway::handle_mqtt_connect(void * which, bool conn_state)
 {
+    MQTTSN_INFO_PRINTLN("MQTT connect status: %s", conn_state ? "connected" : "disconnected");
+    
     MQTTSNGateway * self = static_cast<MQTTSNGateway*>(which);
     
     /* now we know we're no longer connected to MQTT broker */

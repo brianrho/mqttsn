@@ -66,7 +66,7 @@ class MQTTSNClient {
     /* start sending SEARCHGWs to find a gateway */
     void start_discovery(void);
     
-    /* return the total number of gateways added manually or discovered */
+    /* return the total number of valid (non-zero GWID) gateways added manually or discovered */
     uint8_t gateway_count(void) const;
     
     /* Connect a specific gateway,

@@ -71,7 +71,7 @@ void loop(void) {
 /* set LED to the payload */
 void publish_callback(const char * topic, uint8_t * data, uint8_t len, MQTTSNFlags * flags)
 {
-    if (strcmp(topic, "led") == 0) {
+    if (strcmp(topic, "led") == 0 && len != 0) {
         printf("\r\nTopic: %s\r\n", topic);
         printf("Payload: ");
 
@@ -80,7 +80,7 @@ void publish_callback(const char * topic, uint8_t * data, uint8_t len, MQTTSNFla
         }
 
         printf("\r\n\r\n");
-        digitalWrite(LED_BUILTIN, led_state);
+        digitalWrite(LED_BUILTIN, data[0]);
     }
 }
 

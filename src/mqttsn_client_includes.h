@@ -6,8 +6,8 @@
 
 /* uncomment to select a device */
 
-    #define MQTTSN_INCLUDE_DEVICE_ARDUINO
-    //#define MQTTSN_INCLUDE_DEVICE_STM32F1
+    //#define MQTTSN_INCLUDE_DEVICE_ARDUINO
+    #define MQTTSN_INCLUDE_DEVICE_STM32F1
 
 /* uncomment to select a transport */
 
