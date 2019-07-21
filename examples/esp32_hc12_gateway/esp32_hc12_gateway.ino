@@ -19,12 +19,13 @@ MQTTClientPubsub mqttc(&pubsub);
 
 MQTTSNGateway gateway(&device, &transport, &mqttc);
 
-const char* ssid = "Ciphrang";
-const char* password = "orderchaos";
+const char* ssid = "..........";
+const char* password = "............";
 const char* mqtt_server = "iot.eclipse.org";
 
 void setup_wifi(void) {
     if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("Already connected.");
         return;
     }
     
