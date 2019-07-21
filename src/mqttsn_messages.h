@@ -93,8 +93,8 @@ typedef struct {
 /* messages */
 class MQTTSNMessage {
     public:
-    uint8_t pack(uint8_t * buffer, uint8_t buflen) {}
-    uint8_t unpack(uint8_t * buffer, uint8_t buflen) {}
+    uint8_t pack(uint8_t * buffer, uint8_t buflen) { return 0; }
+    uint8_t unpack(uint8_t * buffer, uint8_t buflen) { return 0; }
     
     MQTTSNHeader header;
 };

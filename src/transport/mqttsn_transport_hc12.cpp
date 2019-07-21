@@ -1,7 +1,7 @@
 /* Written by Brian Ejike (2019)
  * DIstributed under the MIT License */
  
-#include "mqttsn_excludes.h"
+#include "../mqttsn_excludes.h"
 
 #if !defined(MQTTSN_EXCLUDE_TRANSPORT_HC12)
 

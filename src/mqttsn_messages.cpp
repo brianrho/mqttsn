@@ -9,7 +9,7 @@
 
 /**************** MQTTSNHeader ***************/
 
-MQTTSNHeader::MQTTSNHeader(uint8_t msg_type) : length(0), msg_type(msg_type)
+MQTTSNHeader::MQTTSNHeader(uint8_t msg_type) : msg_type(msg_type), length(0)
 {
 
 }
@@ -27,7 +27,7 @@ uint8_t MQTTSNHeader::pack(uint8_t * buffer, uint8_t buflen, uint8_t datalen)
     if (length < 256) {
         buffer[0] = length;
         buffer[1] = msg_type;
-        return 2;
+        return MQTTSN_HEADER_LEN;
     }
     
     return 0;
@@ -45,7 +45,7 @@ uint8_t MQTTSNHeader::unpack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
-    length = buffer[0] - MQTTSN_HEADER_LEN;
+    length = buffer[0];
     msg_type = buffer[1];
     return MQTTSN_HEADER_LEN;
 }
@@ -515,7 +515,7 @@ MQTTSNMessageSuback::MQTTSNMessageSuback(uint8_t return_code) :
 
 uint8_t MQTTSNMessageSuback::pack(uint8_t * buffer, uint8_t buflen) 
 {
-    header.msg_type = MQTTSN_REGACK;
+    header.msg_type = MQTTSN_SUBACK;
     uint8_t offset = header.pack(buffer, buflen, 1 + 2 + 2 + 1);
     if (!offset) {
         return 0;
@@ -600,6 +600,9 @@ uint8_t MQTTSNMessagePingreq::pack(uint8_t * buffer, uint8_t buflen)
     }
     
     /* fill in the message content */
+    if (client_id_len == 0)
+        return offset;
+    
     memcpy(&buffer[offset], client_id, client_id_len);
     offset += client_id_len;
     
@@ -608,7 +611,7 @@ uint8_t MQTTSNMessagePingreq::pack(uint8_t * buffer, uint8_t buflen)
 
 uint8_t MQTTSNMessagePingreq::unpack(uint8_t * buffer, uint8_t buflen) 
 {
-    /* empty payload not allowed, client ID must be present */
+    /* empty payload should not be passed, client ID must be present */
     if (buflen == 0) {
         return 0;
     }

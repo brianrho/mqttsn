@@ -33,7 +33,7 @@
 #define MQTTSN_DEFAULT_KEEPALIVE_MS     (MQTTSN_DEFAULT_KEEPALIVE * 1000UL)
 
 /* timeout for all unicasted messages to GW in ms */
-#define MQTTSN_T_RETRY                  5000UL
+#define MQTTSN_T_RETRY                  10000UL
 #define MQTTSN_N_RETRY                  3
 
 /* max delay before sending first SEARCHGW in milliseconds */
@@ -56,62 +56,6 @@
 #define MQTTSN_MAX_QUEUED_PUBLISH       64
 
 
-/********** Debug control *************/
-
-/* Set the debug level
-   0: Disabled
-   1: Errors only
-   2: Everything
- */
-#define MQTTSN_DEBUG_LEVEL             2
-
-#if (MQTTSN_DEBUG_LEVEL == 0)
-    
-    #define MQTTSN_INFO_PRINT(x)
-    #define MQTTSN_INFO_PRINTLN(x)
-    #define MQTTSN_INFO_DEC(x)
-    #define MQTTSN_INFO_DECLN(x)
-    #define MQTTSN_INFO_HEX(x)
-    #define MQTTSN_INFO_HEXLN(x)
-    
-    #define MQTTSN_ERROR_PRINT(x)
-    #define MQTTSN_ERROR_PRINTLN(x)
-    #define MQTTSN_ERROR_DEC(x)
-    #define MQTTSN_ERROR_DECLN(x)
-    #define MQTTSN_ERROR_HEX(x)
-    #define MQTTSN_ERROR_HEXLN(x)
-    
-#else
-
-    #if defined(ARDUINO)
-        #include <Arduino.h>
-        #define MQTTSN_DEFAULT_STREAM          Serial
-        
-        #define MQTTSN_ERROR_PRINT(x)          MQTTSN_DEFAULT_STREAM.print(x)
-        #define MQTTSN_ERROR_PRINTLN(x)        MQTTSN_DEFAULT_STREAM.println(x)
-        #define MQTTSN_ERROR_DEC(x)            MQTTSN_DEFAULT_STREAM.print(x)
-        #define MQTTSN_ERROR_DECLN(x)          MQTTSN_DEFAULT_STREAM.println(x)
-        #define MQTTSN_ERROR_HEX(x)            MQTTSN_DEFAULT_STREAM.print(x, HEX)
-        #define MQTTSN_ERROR_HEXLN(x)          MQTTSN_DEFAULT_STREAM.println(x, HEX)
-        
-        #if (MQTTSN_DEBUG_LEVEL == 1)        
-            #define MQTTSN_INFO_PRINT(x)
-            #define MQTTSN_INFO_PRINTLN(x)
-            #define MQTTSN_INFO_DEC(x)
-            #define MQTTSN_INFO_DECLN(x)
-            #define MQTTSN_INFO_HEX(x)
-            #define MQTTSN_INFO_HEXLN(x)
-        #else
-            #define MQTTSN_INFO_PRINT(x)           MQTTSN_DEFAULT_STREAM.print(x)
-            #define MQTTSN_INFO_PRINTLN(x)         MQTTSN_DEFAULT_STREAM.println(x)
-            #define MQTTSN_INFO_DEC(x)             MQTTSN_DEFAULT_STREAM.print(x)
-            #define MQTTSN_INFO_DECLN(x)           MQTTSN_DEFAULT_STREAM.println(x)
-            #define MQTTSN_INFO_HEX(x)             MQTTSN_DEFAULT_STREAM.print(x, HEX)
-            #define MQTTSN_INFO_HEXLN(x)           MQTTSN_DEFAULT_STREAM.println(x, HEX)
-        #endif
-        
-    #endif
-
-#endif
+#include "mqttsn_debug.h"
 
 #endif

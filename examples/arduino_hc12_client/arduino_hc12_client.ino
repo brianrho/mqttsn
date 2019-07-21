@@ -1,6 +1,7 @@
-#include "mqttsn_includes.h"
+#include "mqttsn_client_includes.h"
 #include <SoftwareSerial.h>
 #include <hc12.h>
+#include "printf_config.h"
 
 /* A list of 3 gateways
  * The first is initialized to GW_ID = 2, GW_ADDR = 10, address is 1-byte long */
@@ -20,10 +21,12 @@ MQTTSNClient client(&device, &transport);
 
 /* list topics */
 MQTTSNPubTopic pub_topics[] = { {"led"} };
+MQTTSNSubTopic sub_topics[] = { {"led"} };
 
 void setup(void) {
     Serial.begin(9600);
     rfport.begin(9600);
+    printf_begin();
     
     hc12.begin(own_addr);
 
@@ -33,8 +36,9 @@ void setup(void) {
         Serial.println("Init client failed.");
         while (1) yield();
     }
-    
+
     client.add_gateways(gateways, GATEWAYS_SZ);
+    client.on_message(publish_callback);
     
     /* async-connect to first available gateway */
     if (!client.connect()) {
@@ -64,6 +68,29 @@ void loop(void) {
     }
 }
 
-bool check_topics(void) {
-    return client.register_topics(pub_topics, sizeof(pub_topics) / sizeof(MQTTSNPubTopic));      
+/* set LED to the payload */
+void publish_callback(const char * topic, uint8_t * data, uint8_t len, MQTTSNFlags * flags)
+{
+    if (strcmp(topic, "led") == 0) {
+        printf("\r\nTopic: %s\r\n", topic);
+        printf("Payload: ");
+
+        for (int i = 0; i < len; i++) {
+            printf("%x ", data[i]);
+        }
+
+        printf("\r\n\r\n");
+        digitalWrite(LED_BUILTIN, led_state);
+    }
 }
+
+bool check_topics(void) {
+    if (!client.register_topics(pub_topics, sizeof(pub_topics) / sizeof(MQTTSNPubTopic)))
+        return false;
+
+    if (!client.subscribe_topics(sub_topics, sizeof(sub_topics) / sizeof(MQTTSNSubTopic)))
+        return false;
+
+    return true;
+}
+

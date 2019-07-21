@@ -1,4 +1,14 @@
+/* Written by Brian Ejike (2019)
+ * DIstributed under the MIT License */
+ 
+#ifndef MQTTSN_GATEWAY_H_
+#define MQTTSN_GATEWAY_H_
+
+#include "mqttsn_defines.h"
 #include "mqttsn_messages.h"
+#include "mqttsn_transport.h"
+#include <lite_fifo.h>
+#include <stdint.h>
 
 typedef struct {
     uint16_t tid;
@@ -15,12 +25,17 @@ typedef enum {
     MQTTSNInstanceStatus_DISCONNECTED
 } MQTTSNInstanceStatus;
 
+class MQTTSNDevice;
+class MQTTClient;
+
 class MQTTSNInstance {
+    friend class MQTTSNGateway;
+    
     public:
         MQTTSNInstance(void);
         
         /* insert a new client's info */
-        bool register_(const char * cid, MQTTSNAddress * addr, uint16_t duration, MQTTSNFlags * flags);
+        bool register_(uint8_t * cid, uint8_t cid_len, MQTTSNAddress * addr, uint16_t duration, MQTTSNFlags * flags);
         
         /* delete an existing client, after it gets lost or DISCONNECTed */
         void deregister(void);
@@ -29,7 +44,7 @@ class MQTTSNInstance {
         bool add_sub_topic(uint16_t tid, MQTTSNFlags * flags);
         
         /* add a new topic registered by the client */
-        bool add_pub_topic(uint16_t tid, MQTTSNFlags * flags);
+        bool add_pub_topic(uint16_t tid);
         
         /* delete a client's subscription */
         void delete_sub_topic(uint16_t tid);
@@ -38,14 +53,14 @@ class MQTTSNInstance {
         bool is_subbed(uint16_t tid);
         
         /* re-send any inflight msgs and check the client's status */
-        MQTTSNInstanceStatus check_status(MQTTSNTransport * transport);
+        MQTTSNInstanceStatus check_status(MQTTSNDevice * device, MQTTSNTransport * transport);
         
         /* used after a transaction is initiated by the client */
-        void mark_time(void);
+        void mark_time(uint32_t now);
         
-        operator bool() const;
+        explicit operator bool() const;
         
-    private:
+    protected:
         MQTTSNInstancePubTopic pub_topics[MQTTSN_MAX_INSTANCE_TOPICS];
         MQTTSNInstanceSubTopic sub_topics[MQTTSN_MAX_INSTANCE_TOPICS];
         
@@ -77,10 +92,12 @@ typedef struct {
     uint16_t tid;
 } MQTTSNTopicMapping;
 
+
 class MQTTSNGateway {
     public:
-    MQTTSNGateway(uint8_t gw_id, MQTTClient * client, MQTTSNTransport * transport);
-    void loop(void);
+    MQTTSNGateway(MQTTSNDevice * device, MQTTSNTransport * transport, MQTTClient * client = NULL);
+    bool begin(uint8_t gw_id);
+    bool loop(void);
     
     private:
     void assign_msg_handlers(void);
@@ -90,9 +107,9 @@ class MQTTSNGateway {
     void add_subscription(uint16_t tid, uint8_t qos);
     void delete_subscription(uint16_t tid);
     
-    uint16_t get_topic_id(const char * name);
-    uint16_t get_topic_mapping(uint16_t tid);
-    MQTTSNInstance * get_instance(MQTTSNAddress * addr);
+    uint16_t get_topic_id(const uint8_t * name, uint8_t name_len);
+    MQTTSNTopicMapping * get_topic_mapping(uint16_t tid);
+    MQTTSNInstance * get_client(MQTTSNAddress * addr);
     
     /* MQTTSN message handlers */
     void handle_searchgw(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
@@ -104,29 +121,38 @@ class MQTTSNGateway {
     void handle_pingreq(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
     
     /* MQTT event handlers */
-    void handle_mqtt_connect(bool conn_state);
-    void handle_mqtt_publish(const char * topic, uint8_t * payload, uint8_t length, MQTTSNFlags * flags);
+    static void handle_mqtt_connect(void * which, bool conn_state);
+    static void handle_mqtt_publish(void * which, const char * topic, uint8_t * payload, uint8_t length, MQTTSNFlags * flags);
     
+    /* table of topic mappings */
     MQTTSNTopicMapping mappings[MQTTSN_MAX_TOPIC_MAPPINGS];
     MQTTSNInstance clients[MQTTSN_MAX_NUM_CLIENTS];
     
     /* message handlers jump table, used for dispatch */
-    void (MQTTSNClient::*msg_handlers[MQTTSN_NUM_MSG_TYPES])(uint8_t *, uint8_t, MQTTSNAddress *);
+    void (MQTTSNGateway::*msg_handlers[MQTTSN_NUM_MSG_TYPES])(uint8_t *, uint8_t, MQTTSNAddress *);
     
     uint8_t gw_id;
     MQTTSNDevice * device;
     MQTTSNTransport * transport;
     MQTTClient * mqtt_client;
+    
+    /* for MQTT connection state */
     bool connected;
+    /* for unicast msgs */
     uint16_t curr_msg_id;
     
     /* queue for holding publish messages awaiting dispatch */
     LiteFifo pub_fifo;
     uint8_t pub_fifo_buf[MQTTSN_MAX_QUEUED_PUBLISH * MQTTSN_MAX_MSG_LEN];
     
-    /* temp buffer for holding serialized msgs */
-    uint8_t temp_msg[MQTTSN_MAX_MSG_LEN];
-    uint8_t temp_msg_len;
+    /* buffer for incoming packets */
+    uint8_t in_msg[MQTTSN_MAX_MSG_LEN];
+    uint8_t in_msg_len;
+    
+    /* buffer for outgoing packets */
+    uint8_t out_msg[MQTTSN_MAX_MSG_LEN];
+    uint8_t out_msg_len;
 };
-};
+
+#endif
 

@@ -11,16 +11,15 @@
 #include <stddef.h>
 
 MQTTSNClient::MQTTSNClient(MQTTSNDevice * device, MQTTSNTransport * transport) :
-    gateways(NULL), pub_topics(NULL), sub_topics(NULL),
-    sub_topics_cnt(0), pub_topics_cnt(0), publish_cb(NULL),
-    device(device), transport(transport), client_id(NULL), 
-    state(MQTTSNState_DISCONNECTED), curr_gateway(NULL), 
-    gateways_capacity(0), connected(false), msg_inflight_len(0),
+    gateways(NULL), gateways_capacity(0), pub_topics(NULL),
+	sub_topics(NULL), sub_topics_cnt(0), pub_topics_cnt(0),
+	publish_cb(NULL), device(device), transport(transport),
+	client_id(NULL), state(MQTTSNState_DISCONNECTED),
+	curr_gateway(NULL), connected(false), msg_inflight_len(0),
     keepalive_interval(MQTTSN_DEFAULT_KEEPALIVE_MS), keepalive_timeout(MQTTSN_DEFAULT_KEEPALIVE_MS),
     last_in(0), last_out(0), pingresp_pending(false), 
-    pingreq_timer(0), pingreq_counter(0), gwinfo_timer(0), 
-    searchgw_interval(MQTTSN_T_SEARCHGW), gwinfo_pending(false),
-    curr_msg_id(0), temp_msg_len(0)
+    pingreq_timer(0), gwinfo_timer(0), searchgw_interval(MQTTSN_T_SEARCHGW), 
+    gwinfo_pending(false), curr_msg_id(0), out_msg_len(0)
 {
     
 }
@@ -28,7 +27,7 @@ MQTTSNClient::MQTTSNClient(MQTTSNDevice * device, MQTTSNTransport * transport) :
 bool MQTTSNClient::begin(const char * client_id)
 {
     if (!client_id || strlen(client_id) > MQTTSN_MAX_CLIENTID_LEN) {
-        MQTTSN_ERROR_PRINTLN("::Invalid Client ID");
+        MQTTSN_ERROR_PRINTLN("Invalid Client ID");
         return false;
     }
     
@@ -47,6 +46,7 @@ bool MQTTSNClient::begin(const char * client_id)
     }
     
     assign_handlers();
+    return true;
 }
 
 void MQTTSNClient::assign_handlers(void)
@@ -89,7 +89,7 @@ bool MQTTSNClient::loop(void)
     inflight_handler();
     
     /* run current state handler */
-    if (state_handlers[state] != NULL) {
+    if (state < MQTTSNState_NUM_STATES && state_handlers[state] != NULL) {
         (this->*state_handlers[state])();
     }
     
@@ -105,10 +105,10 @@ void MQTTSNClient::start_discovery(void)
     gwinfo_pending = true;
     searchgw_interval = device->get_random(0, MQTTSN_T_SEARCHGW);
     state = MQTTSNState_SEARCHING;
-    MQTTSN_INFO_PRINTLN("::Starting SEARCHGW delay");
+    MQTTSN_INFO_PRINTLN("Starting SEARCHGW delay");
 }
 
-uint8_t MQTTSNClient::gateway_count(void)
+uint8_t MQTTSNClient::gateway_count(void) const
 {
     /* count gateways with valid IDs */
     uint8_t count = 0;
@@ -123,6 +123,7 @@ uint8_t MQTTSNClient::gateway_count(void)
 
 bool MQTTSNClient::connect(uint8_t gw_id, MQTTSNFlags * flags, uint16_t duration) 
 {
+	MQTTSN_INFO_PRINTLN("Sending CONNECT.");
     /* make sure there's no pending transaction */
     if (gateways == NULL || msg_inflight_len != 0)
         return false;
@@ -163,7 +164,7 @@ bool MQTTSNClient::connect(uint8_t gw_id, MQTTSNFlags * flags, uint16_t duration
     unicast_timer = device->get_millis();
     unicast_counter = 0;
     
-    MQTTSN_INFO_PRINT("::CONNECT sent to ID "); MQTTSN_INFO_HEXLN(curr_gateway->gw_id);
+    MQTTSN_INFO_PRINTLN("CONNECT sent to ID %X", curr_gateway->gw_id);
     return true;
 }
 
@@ -223,8 +224,15 @@ bool MQTTSNClient::register_topics(MQTTSNPubTopic * topics, uint16_t len)
 
 void MQTTSNClient::register_(MQTTSNPubTopic * topic)
 {
+    MQTTSN_INFO_PRINTLN("Sending REGISTER.");
+    
     MQTTSNMessageRegister msg;
     msg.topic_name = (uint8_t *)topic->name;
+    msg.topic_name_len = strlen(topic->name);
+    
+    if (msg.topic_name_len > MQTTSN_MAX_TOPICNAME_LEN)
+        return;
+        
     msg.topic_id = 0;
     
     /* 0 is reserved for message IDs */
@@ -245,11 +253,12 @@ void MQTTSNClient::register_(MQTTSNPubTopic * topic)
     unicast_counter = 0;
 
     /* advance for next transaction */
-    curr_msg_id = curr_msg_id + 1;
+    curr_msg_id++;
 }
 
 bool MQTTSNClient::publish(const char * topic, uint8_t * data, uint8_t len, MQTTSNFlags * flags)
 {
+	MQTTSN_INFO_PRINTLN("Sending PUBLISH.");
     /* if we're not connected */
     if (!connected)
         return false;
@@ -259,7 +268,7 @@ bool MQTTSNClient::publish(const char * topic, uint8_t * data, uint8_t len, MQTT
     msg.topic_id = 0;
     
     for (int i = 0; i < pub_topics_cnt; i++) {
-        if (strcmp(pub_topics[i].name, topic) == 0) {
+        if (pub_topics[i].tid != 0 && strcmp(pub_topics[i].name, topic) == 0) {
             msg.topic_id = pub_topics[i].tid;
             break;
         }
@@ -281,8 +290,10 @@ bool MQTTSNClient::publish(const char * topic, uint8_t * data, uint8_t len, MQTT
     }
 
     msg.data = data;
-    uint8_t temp_msg_len = msg.pack(temp_msg, MQTTSN_MAX_MSG_LEN);
-    transport->write_packet(temp_msg, temp_msg_len, &curr_gateway->gw_addr);
+    msg.data_len = len;
+    
+    out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
+    transport->write_packet(out_msg, out_msg_len, &curr_gateway->gw_addr);
 
     /* TODO: need to note last_out for QoS 1 publish */
 
@@ -312,9 +323,15 @@ bool MQTTSNClient::subscribe_topics(MQTTSNSubTopic * topics, uint16_t len)
 
 void MQTTSNClient::subscribe(MQTTSNSubTopic * topic)
 {
+	MQTTSN_INFO_PRINTLN("Sending SUBSCRIBE.");
+
     MQTTSNMessageSubscribe msg;
     msg.topic_name = (uint8_t *)topic->name;
+    msg.topic_name_len = strlen(topic->name);
     
+    if (msg.topic_name_len > MQTTSN_MAX_TOPICNAME_LEN)
+        return;
+        
     /* 0 is reserved for message IDs */
     curr_msg_id = (curr_msg_id == 0) ? 1 : curr_msg_id;
     msg.msg_id = curr_msg_id;
@@ -334,10 +351,11 @@ void MQTTSNClient::subscribe(MQTTSNSubTopic * topic)
     unicast_counter = 0;
 
     /* advance for next transaction */
-    curr_msg_id = curr_msg_id + 1;
+    curr_msg_id++;
+    MQTTSN_INFO_PRINTLN("Subscribe sent.");
 }
 
-bool MQTTSNClient::unsubscribe(const char * topic, MQTTSNFlags * flags)
+bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
 {
     /* if we're not connected or theres a pending reply */
     if (!connected || msg_inflight_len) {
@@ -346,14 +364,25 @@ bool MQTTSNClient::unsubscribe(const char * topic, MQTTSNFlags * flags)
 
     MQTTSNMessageUnsubscribe msg;
 
+    MQTTSNSubTopic * topic;
     /* check our list of subs for this topic */
     for (int i = 0; i < sub_topics_cnt; i++) {
-        if (strcmp(sub_topics[i].name, topic) == 0) {
-            msg.topic_name = (uint8_t *)topic;
+        if (strcmp(sub_topics[i].name, topic_name) == 0) {
+            topic = &sub_topics[i];
             break;
         }
     }
-
+    
+    /* if we didnt find it */
+    if (topic == NULL)
+        return false;
+        
+    topic->tid = MQTTSN_TOPIC_UNSUBSCRIBED;
+    msg.topic_name = (uint8_t *)topic_name;
+    msg.topic_name_len = strlen(topic_name);
+    if (msg.topic_name_len > MQTTSN_MAX_TOPICNAME_LEN)
+        return false;
+        
     /* 0 is reserved */
     curr_msg_id = curr_msg_id == 0 ? 1 : curr_msg_id;
     msg.msg_id = curr_msg_id;
@@ -373,20 +402,22 @@ bool MQTTSNClient::unsubscribe(const char * topic, MQTTSNFlags * flags)
     unicast_counter = 0;
 
     /* advance for next transaction */
-    curr_msg_id = curr_msg_id + 1;
+    curr_msg_id++;
     return true;
 }
 
 bool MQTTSNClient::ping(void)
 {
+	MQTTSN_INFO_PRINTLN("Sending PING.");
+
     /* if we're not connected */
-    if (!connected) {
+    if (!connected || curr_gateway == NULL) {
         return false;
     }
     
     MQTTSNMessagePingreq msg;
-    uint8_t temp_msg_len = msg.pack(temp_msg, MQTTSN_MAX_MSG_LEN);
-    transport->write_packet(temp_msg, temp_msg_len, &curr_gateway->gw_addr);
+    out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
+    transport->write_packet(out_msg, out_msg_len, &curr_gateway->gw_addr);
 
     last_out = device->get_millis();
     pingreq_timer = device->get_millis();
@@ -405,7 +436,7 @@ bool MQTTSNClient::transaction_pending(void)
     return msg_inflight_len != 0;
 }
 
-bool MQTTSNClient::is_connected(void)
+bool MQTTSNClient::is_connected(void) const
 {
     return connected;
 }
@@ -413,12 +444,12 @@ bool MQTTSNClient::is_connected(void)
 bool MQTTSNClient::disconnect(void)
 {
     if (!connected) {
-        return false;
+        return true;
     }
     
     MQTTSNMessageDisconnect msg;
-    uint8_t temp_msg_len = msg.pack(temp_msg, MQTTSN_MAX_MSG_LEN);
-    transport->write_packet(temp_msg, temp_msg_len, &curr_gateway->gw_addr);
+    out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
+    transport->write_packet(out_msg, out_msg_len, &curr_gateway->gw_addr);
 
     connected = false;
     state = MQTTSNState_DISCONNECTED;
@@ -430,23 +461,28 @@ void MQTTSNClient::on_message(MQTTSNPublishCallback callback)
     publish_cb = callback;
 }
 
-MQTTSNState MQTTSNClient::status(void) 
+MQTTSNState MQTTSNClient::status(void) const
 {
     return state;
 }
 
 void MQTTSNClient::handle_messages(void)
 {
+    MQTTSNAddress src;
+    
     while (true) {
+    	device->cede();
+
         /* try to read a packet */
-        MQTTSNAddress src;
-        int16_t rlen = transport->read_packet(temp_msg, MQTTSN_MAX_MSG_LEN, &src);
+        int16_t rlen = transport->read_packet(in_msg, MQTTSN_MAX_MSG_LEN, &src);
         if (rlen <= 0)
             return;
             
+        MQTTSN_INFO_PRINTLN("Got message.");
+
         /* get the msg type */
         MQTTSNHeader header;
-        uint8_t offset = header.unpack(temp_msg, rlen);
+        uint8_t offset = header.unpack(in_msg, rlen);
         if (offset == 0)
             continue;
         
@@ -456,9 +492,7 @@ void MQTTSNClient::handle_messages(void)
             continue;
         
         /* call the handler */
-        (this->*msg_handlers[idx])(&temp_msg[offset], rlen, &src);
-        
-        device->cede();
+        (this->*msg_handlers[idx])(&in_msg[offset], rlen - offset, &src);
     }
 }
 
@@ -469,27 +503,30 @@ void MQTTSNClient::inflight_handler(void)
         return;
     }
     
+    //MQTTSN_INFO_PRINTLN("In flight.");
     /* do we still have time? */
     if (device->get_millis() - unicast_timer < MQTTSN_T_RETRY) {
         return;
     }
     
     unicast_timer = device->get_millis();
-    unicast_counter += 1;
+    unicast_counter++;
     
     /* too many retries? */
-    if (unicast_counter >= MQTTSN_N_RETRY) {
+    if (unicast_counter > MQTTSN_N_RETRY) {
         connected = false;
         msg_inflight_len = 0;
         state = MQTTSNState_LOST;
         
         /* Mark the gateway as unavailable */
         curr_gateway->available = false;
+        curr_gateway = NULL;
         return;
     }
     
     /* resend the msg */
     transport->write_packet(msg_inflight, msg_inflight_len, &curr_gateway->gw_addr);
+    MQTTSN_INFO_PRINTLN("Resending msg.");
 }
 
 void MQTTSNClient::handle_advertise(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
@@ -564,6 +601,8 @@ void MQTTSNClient::handle_gwinfo(uint8_t * data, uint8_t data_len, MQTTSNAddress
 
 void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+    MQTTSN_INFO_PRINTLN("Got CONNACK.");
+    
     /* make sure its from the solicited gateway */
     if (curr_gateway == NULL || memcmp(src->bytes, curr_gateway->gw_addr.bytes, curr_gateway->gw_addr.len) != 0) {
         return;
@@ -571,7 +610,9 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
     
     if (msg_inflight_len == 0)
         return;
-        
+    
+    MQTTSN_INFO_PRINTLN("Handling CONNACK.");
+    
     /* parse our stored msg */
     MQTTSNHeader header;
     uint8_t offset = header.unpack(msg_inflight, msg_inflight_len);
@@ -590,7 +631,7 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
         msg_inflight_len = 0;
         return;
     }
-        
+    
     /* now unpack the reply */
     MQTTSNMessageConnack msg;
     if (!msg.unpack(data, data_len))
@@ -601,7 +642,7 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
         state = MQTTSNState_DISCONNECTED;
         return;
     }
-
+    
     /* we are now connected */
     connected = true;
     msg_inflight_len = 0;
@@ -615,10 +656,14 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
     for (int i = 0; i < sub_topics_cnt; i++) {
         sub_topics[i].tid = 0;
     }
+    
+    MQTTSN_INFO_PRINTLN("Connected.");
 }
 
 void MQTTSNClient::handle_regack(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+    MQTTSN_INFO_PRINTLN("Got REGACK.");
+    
     /* if this is to be used as proof of connectivity,
        then we must verify that the gateway is the right one */
     if (curr_gateway == NULL || memcmp(src->bytes, curr_gateway->gw_addr.bytes, curr_gateway->gw_addr.len) != 0) {
@@ -658,16 +703,16 @@ void MQTTSNClient::handle_regack(uint8_t * data, uint8_t data_len, MQTTSNAddress
     }
     
     /* check our list and put in the ID */
-    bool topic_found = false;
+    MQTTSNPubTopic * topic = NULL;
     for (int i = 0; i < pub_topics_cnt; i++) {
-        if (strcmp(pub_topics[i].name, (char *)sent.topic_name) == 0) {
-            pub_topics[i].tid = msg.topic_id;
-            topic_found = true;
+        topic = &pub_topics[i];
+        if (strlen(topic->name) == sent.topic_name_len && memcmp(topic->name, sent.topic_name, sent.topic_name_len) == 0) {
+            topic->tid = msg.topic_id;
             break;
         }
     }
     
-    if (!topic_found)
+    if (topic == NULL)
         return;
 
     msg_inflight_len = 0;
@@ -676,6 +721,8 @@ void MQTTSNClient::handle_regack(uint8_t * data, uint8_t data_len, MQTTSNAddress
 
 void MQTTSNClient::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+	MQTTSN_INFO_PRINTLN("Got PUBLISH.");
+
     /* wont check the gw address,
        have faith that only our connected gw will send us msgs */
     if (curr_gateway == NULL || !connected) {
@@ -706,6 +753,8 @@ void MQTTSNClient::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddres
 
 void MQTTSNClient::handle_suback(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+	MQTTSN_INFO_PRINTLN("Got SUBACK.");
+
     /* if this is to be used as proof of connectivity,
        then we must verify that the gateway is the right one */
     if (curr_gateway == NULL || memcmp(src->bytes, curr_gateway->gw_addr.bytes, curr_gateway->gw_addr.len) != 0) {
@@ -745,16 +794,16 @@ void MQTTSNClient::handle_suback(uint8_t * data, uint8_t data_len, MQTTSNAddress
     }
     
     /* check our list and put in the ID */
-    bool topic_found = false;
+    MQTTSNSubTopic * topic = NULL;
     for (int i = 0; i < sub_topics_cnt; i++) {
-        if (strcmp(sub_topics[i].name, (char *)sent.topic_name) == 0) {
-            sub_topics[i].tid = msg.topic_id;
-            topic_found = true;
+        topic = &sub_topics[i];
+        if (strlen(topic->name) == sent.topic_name_len && strncmp(topic->name, (char *)sent.topic_name, sent.topic_name_len) == 0) {
+            topic->tid = msg.topic_id;
             break;
         }
     }
     
-    if (!topic_found)
+    if (topic == NULL)
         return;
 
     msg_inflight_len = 0;
@@ -763,6 +812,8 @@ void MQTTSNClient::handle_suback(uint8_t * data, uint8_t data_len, MQTTSNAddress
 
 void MQTTSNClient::handle_unsuback(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+	MQTTSN_INFO_PRINTLN("Got UNSUBACK.");
+
     /* if this is to be used as proof of connectivity,
        then we must verify that the gateway is the right one */
     if (curr_gateway == NULL || memcmp(src->bytes, curr_gateway->gw_addr.bytes, curr_gateway->gw_addr.len) != 0) {
@@ -816,6 +867,8 @@ void MQTTSNClient::handle_unsuback(uint8_t * data, uint8_t data_len, MQTTSNAddre
 
 void MQTTSNClient::handle_pingresp(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+    MQTTSN_INFO_PRINTLN("Got PINGRESP.");
+    
     /* if this is to be used as proof of connectivity,
        then we must verify that the gateway is the right one */
     if (curr_gateway == NULL || memcmp(src->bytes, curr_gateway->gw_addr.bytes, curr_gateway->gw_addr.len) != 0) {
@@ -836,8 +889,8 @@ void MQTTSNClient::searching_handler(void)
     if (gwinfo_pending && (uint32_t)(device->get_millis() - gwinfo_timer) >= searchgw_interval) {
         /* broadcast it and start waiting again */
         MQTTSNMessageSearchGW msg;
-        temp_msg_len = msg.pack(temp_msg, MQTTSN_MAX_MSG_LEN);
-        transport->broadcast(temp_msg, temp_msg_len);
+        out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
+        transport->broadcast(out_msg, out_msg_len);
         gwinfo_timer = device->get_millis();
         
         /* increase exponentially */
@@ -854,7 +907,7 @@ void MQTTSNClient::connecting_handler(void)
 
 void MQTTSNClient::lost_handler(void)
 {
-    MQTTSN_ERROR_PRINTLN("::Gateway lost.");
+    MQTTSN_ERROR_PRINTLN("Gateway lost.");
     /* try to re-connect any available gateway */
     connect(0, &connect_flags, keepalive_interval / 1000);
 }
