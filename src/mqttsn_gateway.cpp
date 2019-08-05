@@ -46,8 +46,8 @@ bool MQTTSNInstance::register_(uint8_t * cid, uint8_t cid_len, MQTTSNAddress * a
     
     /* mark them all free */
     for (uint16_t i = 0; i < MQTTSN_MAX_INSTANCE_TOPICS; i++) {
-        sub_topics[i].tid = MQTTSN_TOPIC_NOTASSIGNED;
-        pub_topics[i].tid = MQTTSN_TOPIC_NOTASSIGNED;
+        sub_topics[i].tid = MQTTSN_TOPICID_NOTASSIGNED;
+        pub_topics[i].tid = MQTTSN_TOPICID_NOTASSIGNED;
     }
 
     msg_inflight_len = 0;
@@ -75,7 +75,7 @@ bool MQTTSNInstance::add_sub_topic(uint16_t tid, MQTTSNFlags * flags)
 
     /* else add the new topic to our list */
     for (uint16_t i = 0; i < MQTTSN_MAX_INSTANCE_TOPICS; i++) {
-        if (sub_topics[i].tid == MQTTSN_TOPIC_NOTASSIGNED) {
+        if (sub_topics[i].tid == MQTTSN_TOPICID_NOTASSIGNED) {
             sub_topics[i].tid = tid;
             sub_topics[i].flags.all = flags->all;
             return true;
@@ -97,7 +97,7 @@ bool MQTTSNInstance::add_pub_topic(uint16_t tid)
 
     /* else add the new topic to our list */
     for (uint16_t i = 0; i < MQTTSN_MAX_INSTANCE_TOPICS; i++) {
-        if (pub_topics[i].tid == MQTTSN_TOPIC_NOTASSIGNED) {
+        if (pub_topics[i].tid == MQTTSN_TOPICID_NOTASSIGNED) {
             pub_topics[i].tid = tid;
             return true;
         }
@@ -111,7 +111,7 @@ void MQTTSNInstance::delete_sub_topic(uint16_t tid)
 {
     for (uint16_t i = 0; i < MQTTSN_MAX_INSTANCE_TOPICS; i++) {
         if (sub_topics[i].tid == tid) {
-            sub_topics[i].tid = MQTTSN_TOPIC_NOTASSIGNED;
+            sub_topics[i].tid = MQTTSN_TOPICID_NOTASSIGNED;
             sub_topics[i].flags.all = 0;
             return;
         }
@@ -177,7 +177,7 @@ MQTTSNGateway::MQTTSNGateway(MQTTSNDevice * device, MQTTSNTransport * transport,
     connected(false), curr_msg_id(0), 
     pub_fifo(pub_fifo_buf, MQTTSN_MAX_QUEUED_PUBLISH, MQTTSN_MAX_MSG_LEN)
 {
-    
+    topic_prefix[0] = 0;
 }
 
 bool MQTTSNGateway::begin(uint8_t gw_id)
@@ -200,6 +200,16 @@ void MQTTSNGateway::assign_msg_handlers(void)
     msg_handlers[MQTTSN_PINGREQ] = &MQTTSNGateway::handle_pingreq;
 }
 
+bool MQTTSNGateway::set_topic_prefix(const char * prefix) 
+{
+    if (strlen(prefix) > MQTTSN_MAX_TOPICPREFIX_LEN) {
+        return false;
+    }
+    
+    strcpy(topic_prefix, prefix);
+    return true;
+}
+
 bool MQTTSNGateway::loop(void)
 {
     /* handle any messages from clients */
@@ -208,7 +218,7 @@ bool MQTTSNGateway::loop(void)
     /* check keepalive and any inflight messages */
     for (int i = 0; i < MQTTSN_MAX_NUM_CLIENTS; i++) {
         if (clients[i] && clients[i].check_status(device, transport) == MQTTSNInstanceStatus_LOST) {
-            MQTTSN_INFO_PRINTLN("Client lost: %s", clients[i].client_id);
+            MQTTSN_INFO_PRINTLN("Client %s is lost.", clients[i].client_id);
             clients[i].deregister();
         }
     }
@@ -273,23 +283,50 @@ void MQTTSNGateway::handle_messages(void)
     }
 }
 
+bool MQTTSNGateway::get_mqtt_topic_name(const char * name, char * mqtt_name, uint16_t mqtt_name_sz) {
+    if (strlen(name) + 1 > mqtt_name_sz)
+        return false;
+    
+    /* prepend the prefix if its not a special topic */
+    if (name[0] != '$' && strlen(topic_prefix) != 0) {
+        int rc = snprintf(mqtt_name, mqtt_name_sz, "%s/%s", topic_prefix, name);
+        if (rc < 0 || rc >= mqtt_name_sz)
+            return false;
+    }
+    else {
+        strcpy(mqtt_name, name);
+    }
+    
+    return true;
+}
+
 void MQTTSNGateway::add_subscription(uint16_t tid, uint8_t qos)
 {
     MQTTSNTopicMapping * mapping = get_topic_mapping(tid);
-
+    if (mapping == NULL)
+        return;
+        
     /* if there's no MQTT sub yet */
     if (!mapping->subbed) {
         mapping->subbed = true;
         mapping->sub_qos = qos;
         if (mqtt_client != NULL && connected) {
-            mqtt_client->subscribe(mapping->name, mapping->sub_qos);
+            if (!get_mqtt_topic_name(mapping->name, topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
+                return;
+            
+            mqtt_client->subscribe(topic_name_full, mapping->sub_qos);
+            MQTTSN_INFO_PRINTLN("MQTT SUBSCRIBE to %s.", topic_name_full);
         }
     }
     /* or if the new sub has a higher qos */
     else if (mapping->sub_qos < qos) {
         mapping->sub_qos = qos;
         if (mqtt_client != NULL && connected) {
-            mqtt_client->subscribe(mapping->name, mapping->sub_qos);
+            if (!get_mqtt_topic_name(mapping->name, topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
+                return;
+            
+            mqtt_client->subscribe(topic_name_full, mapping->sub_qos);
+            MQTTSN_INFO_PRINTLN("MQTT SUBSCRIBE to %s.", topic_name_full);
         }
     }
 }
@@ -297,10 +334,17 @@ void MQTTSNGateway::add_subscription(uint16_t tid, uint8_t qos)
 void MQTTSNGateway::delete_subscription(uint16_t tid)
 {
     MQTTSNTopicMapping * mapping = get_topic_mapping(tid);
+    if (mapping == NULL)
+        return;
+    
     mapping->subbed = false;
     mapping->sub_qos = 0;
     if (mqtt_client != NULL && connected) {
-        mqtt_client->unsubscribe(mapping->name);
+        if (!get_mqtt_topic_name(mapping->name, topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
+            return;
+            
+        mqtt_client->unsubscribe(topic_name_full);
+        MQTTSN_INFO_PRINTLN("MQTT UNSUBSCRIBE to %s.", topic_name_full);
     }
 }
 
@@ -327,7 +371,7 @@ uint16_t MQTTSNGateway::get_topic_id(const uint8_t * name, uint8_t name_len)
             mapping->name[name_len] = 0;
             
             mapping->tid = i + 1;
-            while (mapping->tid == MQTTSN_TOPIC_UNSUBSCRIBED || mapping->tid == MQTTSN_TOPIC_NOTASSIGNED)
+            while (mapping->tid == MQTTSN_TOPICID_UNSUBSCRIBED || mapping->tid == MQTTSN_TOPICID_NOTASSIGNED)
                 mapping->tid++;
             return mapping->tid;
         }
@@ -360,6 +404,7 @@ MQTTSNInstance * MQTTSNGateway::get_client(MQTTSNAddress * addr)
 
 void MQTTSNGateway::handle_searchgw(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
+    MQTTSN_INFO_PRINTLN("Got SEARCHGW.");
     MQTTSNMessageSearchGW msg;
     if (!msg.unpack(data, data_len))
         return;
@@ -368,6 +413,7 @@ void MQTTSNGateway::handle_searchgw(uint8_t * data, uint8_t data_len, MQTTSNAddr
     reply.gw_id = gw_id;
     out_msg_len = reply.pack(out_msg, MQTTSN_MAX_MSG_LEN);
     transport->broadcast(out_msg, out_msg_len);
+    MQTTSN_INFO_PRINTLN("GWINFO broadcast.\r\n");
 }
 
 void MQTTSNGateway::handle_connect(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
@@ -408,13 +454,14 @@ void MQTTSNGateway::handle_connect(uint8_t * data, uint8_t data_len, MQTTSNAddre
     
     out_msg_len = reply.pack(out_msg, MQTTSN_MAX_MSG_LEN);
     transport->write_packet(out_msg, out_msg_len, src);
-    MQTTSN_INFO_PRINTLN("CONNACK sent.");
+    MQTTSN_INFO_PRINTLN("CONNACK sent.\r\n");
 }
 
 void MQTTSNGateway::handle_register(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
     MQTTSN_INFO_PRINTLN("Got REGISTER.");
     
+    /* identify the client */
     MQTTSNInstance * clnt = get_client(src);
     if (clnt == NULL)
         return;
@@ -431,22 +478,24 @@ void MQTTSNGateway::handle_register(uint8_t * data, uint8_t data_len, MQTTSNAddr
     reply.msg_id = msg.msg_id;
     reply.return_code = MQTTSN_RC_ACCEPTED;
     
-    /* get an ID and add the topic to the instance */
+    /* get an ID, create a new mapping if needed */
     uint16_t tid = get_topic_id(msg.topic_name, msg.topic_name_len);
     if (tid == 0)
         return;
         
+    /* add the topic to the instance */
     if (!clnt->add_pub_topic(tid)) {
         reply.return_code = MQTTSN_RC_CONGESTION;
     }
     else {
         reply.topic_id = tid;
-        MQTTSN_INFO_PRINTLN("Topic ID: %X", tid);
+        MQTTSN_INFO_PRINTLN("Topic name: %.*s, ID: %X", msg.topic_name_len, msg.topic_name, tid);
     }
 
     /* now send our reply */
     out_msg_len = reply.pack(out_msg, MQTTSN_MAX_MSG_LEN);
     transport->write_packet(out_msg, out_msg_len, src);
+    MQTTSN_INFO_PRINTLN("REGACK sent.\r\n");
 }
 
 void MQTTSNGateway::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
@@ -463,18 +512,20 @@ void MQTTSNGateway::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddre
     if (!msg.unpack(data, data_len) || msg.msg_id != 0x0000)
         return;
 
-    /* get the topic name */
     MQTTSNTopicMapping * mapping = get_topic_mapping(msg.topic_id);
     if (mapping == NULL)
         return;
 
     /* if we're connected to the MQTT broker, just pass on the PUBLISH */
     if (mqtt_client != NULL && connected) {
-        mqtt_client->publish(mapping->name, msg.data, msg.data_len, &msg.flags);
-        MQTTSN_INFO_PRINTLN("Publishing to broker.");
+        if (!get_mqtt_topic_name(mapping->name, topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
+            return;
+        
+        mqtt_client->publish(topic_name_full, msg.data, msg.data_len, &msg.flags);
+        MQTTSN_INFO_PRINTLN("MQTT PUBLISH to %s", topic_name_full);
     }
     else {
-        /* if nobody is subbed to this topic */
+        /* if no client is subbed to this topic */
         if (!mapping->subbed)
             return;
             
@@ -485,6 +536,8 @@ void MQTTSNGateway::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddre
         
         MQTTSN_INFO_PRINTLN("Message queued.");
     }
+    
+    MQTTSN_INFO_PRINTLN();
 }
 
 void MQTTSNGateway::handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
@@ -508,7 +561,7 @@ void MQTTSNGateway::handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNAdd
     reply.msg_id = msg.msg_id;
     reply.return_code = MQTTSN_RC_ACCEPTED;
 
-    /* get an ID */
+    /* get the ID, create a new mapping if needed */
     uint16_t tid = get_topic_id(msg.topic_name, msg.topic_name_len);
     if (tid == 0)
         return;
@@ -517,10 +570,10 @@ void MQTTSNGateway::handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNAdd
     /* add the topic to the instance */
     if (!clnt->add_sub_topic(tid, &msg.flags)) {
         reply.return_code = MQTTSN_RC_CONGESTION;
-        MQTTSN_INFO_PRINTLN("Topic congestion.");
+        MQTTSN_ERROR_PRINTLN("Topic congestion!");
     }
     else {
-        MQTTSN_INFO_PRINTLN("ID assigned: %d", tid);
+        MQTTSN_INFO_PRINTLN("Topic name: %.*s, ID: %X", msg.topic_name_len, msg.topic_name, tid);
         reply.topic_id = tid;
     }
 
@@ -533,6 +586,8 @@ void MQTTSNGateway::handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNAdd
     /* send the new sub to MQTT broker */
     if (reply.return_code == MQTTSN_RC_ACCEPTED)
         add_subscription(tid, msg.flags.qos);
+        
+    MQTTSN_INFO_PRINTLN();
 }
 
 void MQTTSNGateway::handle_unsubscribe(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
@@ -621,9 +676,16 @@ void MQTTSNGateway::handle_mqtt_connect(void * which, bool conn_state)
     self->connected = true;
     for (uint16_t i = 0; i < MQTTSN_MAX_TOPIC_MAPPINGS; i++) {
         MQTTSNTopicMapping * mapping = &self->mappings[i];
-        if (mapping->subbed)
-            self->mqtt_client->subscribe(mapping->name, mapping->sub_qos);
+        if (mapping->subbed) {
+            if (!self->get_mqtt_topic_name(mapping->name, self->topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
+                return;
+                
+            self->mqtt_client->subscribe(self->topic_name_full, mapping->sub_qos);
+            MQTTSN_INFO_PRINTLN("MQTT SUBSCRIBE to %s.", self->topic_name_full);
+        }
     }
+    
+    MQTTSN_INFO_PRINTLN();
 }
 
 void MQTTSNGateway::handle_mqtt_publish(void * which, const char * topic, uint8_t * payload, uint8_t length, MQTTSNFlags * flags)
@@ -637,6 +699,19 @@ void MQTTSNGateway::handle_mqtt_publish(void * which, const char * topic, uint8_
     
     msg.data = payload;
     msg.data_len = length;
+    
+    MQTTSN_INFO_PRINTLN("Got MQTT PUBLISH to %s.", topic);
+    
+    /* if its not a special topic and a topic prefix is in use */
+    uint16_t prefix_len = strlen(self->topic_prefix);
+    if (topic[0] != '$' && prefix_len != 0) {
+        /* check for the prefix and following slash */
+        if (strncmp(self->topic_prefix, topic, prefix_len) != 0 || topic[prefix_len] != '/')
+            return;
+        
+        topic += prefix_len + 1;
+    }
+    
     uint16_t topic_id = self->get_topic_id((uint8_t *)topic, strlen(topic));
 
     if (topic_id == 0)

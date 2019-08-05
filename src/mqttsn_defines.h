@@ -22,8 +22,8 @@
 
 /* Unassigned topic IDs set to 0 for convenience,
    Unsubscribed topics set to max value */
-#define MQTTSN_TOPIC_NOTASSIGNED        0x0000
-#define MQTTSN_TOPIC_UNSUBSCRIBED       0xFFFF
+#define MQTTSN_TOPICID_NOTASSIGNED      0x0000
+#define MQTTSN_TOPICID_UNSUBSCRIBED     0xFFFF
 
 /* maximum length of a topic name;
  * 6 bytes for the remaining fields in a REGISTER */
@@ -47,8 +47,15 @@
    For instance, 10 here means a max of 10 pub topics and a max of 10 sub topics = 20 topics total */
 #define MQTTSN_MAX_INSTANCE_TOPICS      10
 
-/* max number of unique topics in publications or subscriptions */
+/* max number of unique topics held by the gateway, each topic maps to an ID */
 #define MQTTSN_MAX_TOPIC_MAPPINGS       20
+
+/* max length of MQTT topic prefix, 
+ * can be as long as needed really, this is just a reasonable default */
+#define MQTTSN_MAX_TOPICPREFIX_LEN      MQTTSN_MAX_TOPICNAME_LEN
+
+/* max length of complete MQTT topics: prefix + '/' + client_topic */
+#define MQTTSN_MAX_MQTT_TOPICNAME_LEN   (MQTTSN_MAX_TOPICPREFIX_LEN + 1 + MQTTSN_MAX_TOPICNAME_LEN)
 
 #define MQTTSN_MAX_NUM_CLIENTS          10
 

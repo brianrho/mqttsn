@@ -105,7 +105,7 @@ void MQTTSNClient::start_discovery(void)
     gwinfo_pending = true;
     searchgw_interval = device->get_random(0, MQTTSN_T_SEARCHGW);
     state = MQTTSNState_SEARCHING;
-    MQTTSN_INFO_PRINTLN("Starting SEARCHGW delay");
+    MQTTSN_INFO_PRINTLN("Starting SEARCHGW delay.");
 }
 
 uint8_t MQTTSNClient::gateway_count(void) const
@@ -164,7 +164,7 @@ bool MQTTSNClient::connect(uint8_t gw_id, MQTTSNFlags * flags, uint16_t duration
     unicast_timer = device->get_millis();
     unicast_counter = 0;
     
-    MQTTSN_INFO_PRINTLN("CONNECT sent to ID %X", curr_gateway->gw_id);
+    MQTTSN_INFO_PRINTLN("CONNECT sent to ID %X\r\n.", curr_gateway->gw_id);
     return true;
 }
 
@@ -213,7 +213,7 @@ bool MQTTSNClient::register_topics(MQTTSNPubTopic * topics, uint16_t len)
     
     /* register any unregistered topics */
     for (int i = 0; i < pub_topics_cnt; i++) {
-        if (pub_topics[i].tid == MQTTSN_TOPIC_NOTASSIGNED) {
+        if (pub_topics[i].tid == MQTTSN_TOPICID_NOTASSIGNED) {
             register_(&pub_topics[i]);
             return false;
         }
@@ -312,7 +312,7 @@ bool MQTTSNClient::subscribe_topics(MQTTSNSubTopic * topics, uint16_t len)
     
     /* register any unregistered topics */
     for (int i = 0; i < sub_topics_cnt; i++) {
-        if (sub_topics[i].tid == MQTTSN_TOPIC_NOTASSIGNED) {
+        if (sub_topics[i].tid == MQTTSN_TOPICID_NOTASSIGNED) {
             subscribe(&sub_topics[i]);
             return false;
         }
@@ -352,7 +352,7 @@ void MQTTSNClient::subscribe(MQTTSNSubTopic * topic)
 
     /* advance for next transaction */
     curr_msg_id++;
-    MQTTSN_INFO_PRINTLN("Subscribe sent.");
+    MQTTSN_INFO_PRINTLN("SUBSCRIBE sent.\r\n");
 }
 
 bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
@@ -370,8 +370,8 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
     /* check our list of subs for this topic */
     for (int i = 0; i < sub_topics_cnt; i++) {
         if (strcmp(sub_topics[i].name, topic_name) == 0 &&
-        		sub_topics[i].tid != MQTTSN_TOPIC_UNSUBSCRIBED &&
-				sub_topics[i].tid != MQTTSN_TOPIC_NOTASSIGNED)
+        		sub_topics[i].tid != MQTTSN_TOPICID_UNSUBSCRIBED &&
+				sub_topics[i].tid != MQTTSN_TOPICID_NOTASSIGNED)
         {
             topic = &sub_topics[i];
             break;
@@ -383,7 +383,7 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
         return false;
         
     /* delete it, dont bother waiting for UNSUBACK */
-    topic->tid = MQTTSN_TOPIC_UNSUBSCRIBED;
+    topic->tid = MQTTSN_TOPICID_UNSUBSCRIBED;
     topic->flags.all = 0;
 
     msg.topic_name = (uint8_t *)topic_name;
@@ -411,7 +411,7 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
 
     /* advance for next transaction */
     curr_msg_id++;
-    MQTTSN_INFO_PRINTLN("UNSUBSCRIBE sent.");
+    MQTTSN_INFO_PRINTLN("UNSUBSCRIBE sent.\r\n");
     return true;
 }
 
@@ -680,7 +680,7 @@ void MQTTSNClient::handle_connack(uint8_t * data, uint8_t data_len, MQTTSNAddres
         sub_topics[i].tid = 0;
     }
 
-    MQTTSN_INFO_PRINTLN("Connected.");
+    MQTTSN_INFO_PRINTLN("Connected.\r\n");
 }
 
 void MQTTSNClient::handle_regack(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
@@ -909,7 +909,7 @@ void MQTTSNClient::searching_handler(void)
     	}
     }
     else {
-    	/* nothing left to do here */
+    	/* we've found a gateway, nothing left to do here */
     	state = MQTTSNState_DISCONNECTED;
     }
 }
@@ -923,7 +923,7 @@ void MQTTSNClient::connecting_handler(void)
 
 void MQTTSNClient::lost_handler(void)
 {
-    MQTTSN_ERROR_PRINTLN("Gateway lost.");
+    MQTTSN_ERROR_PRINTLN("Gateway lost.\r\n");
     /* try to re-connect any available gateway */
     connect(0, &connect_flags, keepalive_interval / 1000);
 }

@@ -96,8 +96,16 @@ typedef struct {
 class MQTTSNGateway {
     public:
     MQTTSNGateway(MQTTSNDevice * device, MQTTSNTransport * transport, MQTTClient * client = NULL);
+    
+    /* start the gateway with a unique gateway ID */
     bool begin(uint8_t gw_id);
+    
+    /* gateway tasks loop */
     bool loop(void);
+    
+    /* Set a prefix for every client topic
+       e.g. Topic "lights" could be prefixed with the client's name "home" to yield "home/lights" */ 
+    bool set_topic_prefix(const char * prefix);
     
     private:
     void assign_msg_handlers(void);
@@ -110,6 +118,7 @@ class MQTTSNGateway {
     uint16_t get_topic_id(const uint8_t * name, uint8_t name_len);
     MQTTSNTopicMapping * get_topic_mapping(uint16_t tid);
     MQTTSNInstance * get_client(MQTTSNAddress * addr);
+    bool get_mqtt_topic_name(const char * name, char * mqtt_name, uint16_t mqtt_name_sz);
     
     /* MQTTSN message handlers */
     void handle_searchgw(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
@@ -123,6 +132,12 @@ class MQTTSNGateway {
     /* MQTT event handlers */
     static void handle_mqtt_connect(void * which, bool conn_state);
     static void handle_mqtt_publish(void * which, const char * topic, uint8_t * payload, uint8_t length, MQTTSNFlags * flags);
+    
+    /* prepended to every MQTTSN client topic, except those that begin with a $ */
+    char topic_prefix[MQTTSN_MAX_TOPICPREFIX_LEN + 1];
+    
+    /* for holding complete MQTT topic name during publish/subscribe */
+    char topic_name_full[MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1];
     
     /* table of topic mappings */
     MQTTSNTopicMapping mappings[MQTTSN_MAX_TOPIC_MAPPINGS];

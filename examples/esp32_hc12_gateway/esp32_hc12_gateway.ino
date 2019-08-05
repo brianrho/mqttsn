@@ -19,9 +19,11 @@ MQTTClientPubsub mqttc(&pubsub);
 
 MQTTSNGateway gateway(&device, &transport, &mqttc);
 
-const char* ssid = "..........";
-const char* password = "............";
+/* provide connection details */
+const char* ssid = "........";
+const char* password = ".........";
 const char* mqtt_server = "iot.eclipse.org";
+const char* clientId = "ESP32MQTTSNGateway";
 
 void setup_wifi(void) {
     if (WiFi.status() == WL_CONNECTED) {
@@ -66,13 +68,9 @@ void reconnect() {
 
         Serial.print("Attempting MQTT connection...");
 
-        /* Create a random client ID */
-        String clientId = "ESP32Client-";
-        clientId += String(random(0xffff), HEX);
-
         /* Attempt to connect */
         lastReconnectAttempt = now;
-        pubsub.beginConnect(clientId.c_str());
+        pubsub.beginConnect(clientId);
     }
 
     /* check the connect status */
@@ -111,6 +109,9 @@ void setup() {
         Serial.println("Init gateway failed.");
         while (1) yield();
     }
+
+    /* set topic prefix to the client ID, remove this if you want */
+    gateway.set_topic_prefix(clientId);
 }
 
 void loop() {
