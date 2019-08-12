@@ -22,8 +22,8 @@ MQTTClientPubsub mqttc(&pubsub);
 MQTTSNGateway gateway(&device, &mqttc);
 
 /* provide connection details */
-const char* ssid = "Ciphrang";
-const char* password = "orderchaos";
+const char* ssid = ".........";
+const char* password = ".........";
 const char* mqtt_server = "iot.eclipse.org";
 const char* clientId = "ESP32MQTTSNGateway";
 
