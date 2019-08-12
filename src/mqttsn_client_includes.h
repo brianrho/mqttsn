@@ -14,7 +14,8 @@
     #define MQTTSN_INCLUDE_TRANSPORT_HC12
     
     
-/* ignore */
+/*************** IGNORE EVERYTHING BELOW *******************/
+
 #if defined(MQTTSN_INCLUDE_DEVICE_ARDUINO)
     #include "device/mqttsn_device_arduino.h"
 #elif defined(MQTTSN_INCLUDE_DEVICE_STM32F1)

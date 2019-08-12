@@ -1,3 +1,5 @@
+/* ESP32 gateway with HC12 transport */
+
 #include "mqttsn_gateway_includes.h"
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -17,11 +19,11 @@ MQTTSNDeviceArduino device;
 MQTTSNTransportHC12 transport(&hc12);
 MQTTClientPubsub mqttc(&pubsub);
 
-MQTTSNGateway gateway(&device, &transport, &mqttc);
+MQTTSNGateway gateway(&device, &mqttc);
 
 /* provide connection details */
-const char* ssid = "........";
-const char* password = ".........";
+const char* ssid = "Ciphrang";
+const char* password = "orderchaos";
 const char* mqtt_server = "iot.eclipse.org";
 const char* clientId = "ESP32MQTTSNGateway";
 
@@ -110,6 +112,9 @@ void setup() {
         while (1) yield();
     }
 
+    /* register all transports here */
+    gateway.register_transport(&transport);
+    
     /* set topic prefix to the client ID, remove this if you want */
     gateway.set_topic_prefix(clientId);
 }
@@ -117,7 +122,6 @@ void setup() {
 void loop() {
     /* gateway tasks loop */
     gateway.loop();
-
     /* MQTT tasks loop */
     mqttc.loop();
     

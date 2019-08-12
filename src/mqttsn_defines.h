@@ -43,6 +43,12 @@
 
 /********** For gateways *************/
 
+/* max number of transports supported by the gateway simultaneously */
+#define MQTTSN_MAX_NUM_TRANSPORTS       3
+
+/* max number of dummy transports running on the same device */
+#define MQTTSN_MAX_DUMMY_TRANSPORTS     3
+
 /* max number of publish OR subscribe topics for a client
    For instance, 10 here means a max of 10 pub topics and a max of 10 sub topics = 20 topics total */
 #define MQTTSN_MAX_INSTANCE_TOPICS      10

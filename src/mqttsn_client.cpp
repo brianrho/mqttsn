@@ -731,6 +731,7 @@ void MQTTSNClient::handle_regack(uint8_t * data, uint8_t data_len, MQTTSNAddress
         topic = &pub_topics[i];
         if (strlen(topic->name) == sent.topic_name_len && memcmp(topic->name, sent.topic_name, sent.topic_name_len) == 0) {
             topic->tid = msg.topic_id;
+            MQTTSN_INFO_PRINTLN("Reg TID: %d\r\n", topic->tid);
             break;
         }
     }
@@ -759,15 +760,17 @@ void MQTTSNClient::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddres
 
     /* get the topic name */
     const char * topic_name = NULL;
-    for (int i = 0; i < pub_topics_cnt; i++) {
-        if (pub_topics[i].tid == msg.topic_id) {
-            topic_name = pub_topics[i].name;
+    for (int i = 0; i < sub_topics_cnt; i++) {
+        if (sub_topics[i].tid == msg.topic_id) {
+            topic_name = sub_topics[i].name;
             break;
         }
     }
-    
+
     if (topic_name == NULL)
         return;
+
+    MQTTSN_INFO_PRINTLN("Pub TID: %d\r\n", msg.topic_id);
 
     /* call user handler */
     if (publish_cb != NULL)
@@ -822,6 +825,7 @@ void MQTTSNClient::handle_suback(uint8_t * data, uint8_t data_len, MQTTSNAddress
         topic = &sub_topics[i];
         if (strlen(topic->name) == sent.topic_name_len && strncmp(topic->name, (char *)sent.topic_name, sent.topic_name_len) == 0) {
             topic->tid = msg.topic_id;
+            MQTTSN_INFO_PRINTLN("Sub TID: %d\r\n", topic->tid);
             break;
         }
     }

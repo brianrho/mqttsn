@@ -7,5 +7,6 @@
 /* Uncomment the components to exclude */
 
 //#define MQTTSN_EXCLUDE_TRANSPORT_HC12
+//#define MQTTSN_EXCLUDE_TRANSPORT_DUMMY
 
 #endif
