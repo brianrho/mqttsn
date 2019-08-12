@@ -41,7 +41,7 @@ const char* clientId = "ESP32MQTTSNGateway";
 MQTTSNTransportDummy clntdummylink(11);
 MQTTSNClient client(&device, &clntdummylink);
 
-/* GW info: GW_ID = 2, GW_ADDR = 10, address is 1-byte long */
+/* GW info: GW_ID = 2, GW_ADDR = 12, address is 1-byte long */
 MQTTSNAddress gw_addr = {{12}, 1};
 MQTTSNGWInfo gw_info = {2, gw_addr};
 
