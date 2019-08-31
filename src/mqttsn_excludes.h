@@ -6,7 +6,8 @@
 
 /* Uncomment the components to exclude */
 
-//#define MQTTSN_EXCLUDE_TRANSPORT_HC12
-//#define MQTTSN_EXCLUDE_TRANSPORT_DUMMY
+//#define MQTTSN_EXCLUDE_TRANSPORT_RFM69X
+#define MQTTSN_EXCLUDE_TRANSPORT_HC12
+#define MQTTSN_EXCLUDE_TRANSPORT_DUMMY
 
 #endif

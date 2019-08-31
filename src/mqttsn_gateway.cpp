@@ -425,7 +425,7 @@ MQTTSNInstance * MQTTSNGateway::get_client(MQTTSNTransport * transport, MQTTSNAd
         clnt = &clients[i];
         
         /* check that the transports and addresses match */
-        if (clnt && clnt->transport == transport && clnt->address.len == addr->len 
+        if (*clnt && clnt->transport == transport && clnt->address.len == addr->len 
             && memcmp(&clnt->address.bytes, addr->bytes, addr->len) == 0)
         {
             return clnt;
@@ -465,7 +465,7 @@ void MQTTSNGateway::handle_connect(uint8_t * data, uint8_t data_len, MQTTSNTrans
     MQTTSNInstance * clnt;
     for (int i = 0; i < MQTTSN_MAX_NUM_CLIENTS; i++) {
         clnt = &clients[i];
-        if (clnt && strlen(clnt->client_id) == msg.client_id_len && memcmp(clnt->client_id, msg.client_id, msg.client_id_len) == 0) {
+        if (*clnt && strlen(clnt->client_id) == msg.client_id_len && memcmp(clnt->client_id, msg.client_id, msg.client_id_len) == 0) {
             MQTTSN_INFO_PRINTLN("Discarding duplicate client: %s", clnt->client_id);
             clnt->deregister();
             break;
@@ -584,7 +584,7 @@ void MQTTSNGateway::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNTrans
         }
     }
     
-    MQTTSN_INFO_PRINTLN();
+    MQTTSN_INFO_PRINT("\r\n");
 }
 
 void MQTTSNGateway::handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNTransport * transport, MQTTSNAddress * src)
@@ -723,16 +723,34 @@ void MQTTSNGateway::handle_mqtt_connect(void * which, bool conn_state)
     self->connected = true;
     for (uint16_t i = 0; i < MQTTSN_MAX_TOPIC_MAPPINGS; i++) {
         MQTTSNTopicMapping * mapping = &self->mappings[i];
-        if (mapping->subbed) {
-            if (!self->get_mqtt_topic_name(mapping->name, self->topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
-                return;
-                
-            self->mqtt_client->subscribe(self->topic_name_full, mapping->sub_qos);
-            MQTTSN_INFO_PRINTLN("MQTT SUBSCRIBE to %s.", self->topic_name_full);
+        if (!mapping->subbed)
+            continue;
+          
+        MQTTSNInstance * clnt;
+        bool sub_exists = false;
+        for (int i = 0; i < MQTTSN_MAX_NUM_CLIENTS; i++) {
+            clnt = &self->clients[i];
+            
+            /* check that at least one client is subbed to this topic */
+            if (*clnt && clnt->is_subbed(mapping->tid)) {
+                sub_exists = true;
+                break;
+            }
         }
+        
+        if (!sub_exists) {
+            mapping->subbed = false;
+            continue;
+        }
+        
+        if (!self->get_mqtt_topic_name(mapping->name, self->topic_name_full, MQTTSN_MAX_MQTT_TOPICNAME_LEN + 1))
+            return;
+            
+        self->mqtt_client->subscribe(self->topic_name_full, mapping->sub_qos);
+        MQTTSN_INFO_PRINTLN("MQTT SUBSCRIBE to %s.", self->topic_name_full);
     }
     
-    MQTTSN_INFO_PRINTLN();
+    MQTTSN_INFO_PRINT("\r\n");
 }
 
 void MQTTSNGateway::handle_mqtt_publish(void * which, const char * topic, uint8_t * payload, uint8_t length, MQTTSNFlags * flags)

@@ -6,12 +6,13 @@
 
 /* uncomment to select a device */
 
-    //#define MQTTSN_INCLUDE_DEVICE_ARDUINO
-    #define MQTTSN_INCLUDE_DEVICE_STM32F1
+    #define MQTTSN_INCLUDE_DEVICE_ARDUINO
+    //#define MQTTSN_INCLUDE_DEVICE_STM32F1
 
 /* uncomment to select a transport */
 
-    #define MQTTSN_INCLUDE_TRANSPORT_HC12
+    #define MQTTSN_INCLUDE_TRANSPORT_RFM69X
+    //#define MQTTSN_INCLUDE_TRANSPORT_HC12
     
     
 /*************** IGNORE EVERYTHING BELOW *******************/
@@ -24,6 +25,8 @@
 
 #if defined(MQTTSN_INCLUDE_TRANSPORT_HC12)
     #include "transport/mqttsn_transport_hc12.h"
+#elif defined(MQTTSN_INCLUDE_TRANSPORT_RFM69X)
+    #include "transport/mqttsn_transport_rfm69x.h"
 #endif
 
 #include "mqttsn_defines.h"
