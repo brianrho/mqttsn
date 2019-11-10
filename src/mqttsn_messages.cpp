@@ -652,7 +652,6 @@ uint8_t MQTTSNMessagePingresp::unpack(uint8_t * buffer, uint8_t buflen)
 
 /**************** MQTTSNMessageDisconnect ***************/
 
-/* only used when there's a non-zero sleep duration */
 MQTTSNMessageDisconnect::MQTTSNMessageDisconnect(void) : duration(0)
 {
     
@@ -666,6 +665,7 @@ uint8_t MQTTSNMessageDisconnect::pack(uint8_t * buffer, uint8_t buflen)
         return 0;
     }
     
+    /* zero duration not allowed */
     if (duration) {
         buffer[offset++] = duration >> 8;
         buffer[offset++] = duration & 0xff;

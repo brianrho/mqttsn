@@ -61,7 +61,7 @@ class MQTTSNClient {
     void add_gateways(MQTTSNGWInfo * gateways, uint8_t count);
     
     /* client loop, should be called regularly to handle tasks */
-    bool loop(void);
+    MQTTSNState loop(void);
     
     /* start sending SEARCHGWs to find a gateway */
     void start_discovery(void);
@@ -102,6 +102,14 @@ class MQTTSNClient {
     /* Register a user callback for all publish messages from the gateway */
     void on_message(MQTTSNPublishCallback callback);
     
+    /* cancel pending transactions */
+    void cancel_pending(void);
+    
+    /* initiate the sleep process, sleep duration in seconds */
+    bool sleep(uint16_t duration);
+    
+    bool awaken(void);
+    
     /* return client status */
     MQTTSNState status(void) const;
         
@@ -111,7 +119,7 @@ class MQTTSNClient {
     void inflight_handler(void);
     void register_(MQTTSNPubTopic * topic);
     void subscribe(MQTTSNSubTopic * topic);
-    bool ping(void);
+    bool ping(bool with_cid = false);
     MQTTSNGWInfo * select_gateway(uint8_t gw_id);
     
     /* message handlers */
@@ -124,6 +132,7 @@ class MQTTSNClient {
     void handle_suback(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
     void handle_unsuback(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
     void handle_pingresp(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
+    void handle_disconnect(uint8_t * data, uint8_t data_len, MQTTSNAddress * src);
     
     /* client state handlers */
     void searching_handler(void);
@@ -131,6 +140,8 @@ class MQTTSNClient {
     void lost_handler(void);
     //void disconnected_handler(void);
     void active_handler(void);
+    void awake_handler(void);
+    void asleep_handler(void);
     
     /* message handlers jump table, used for dispatch */
     void (MQTTSNClient::*msg_handlers[MQTTSN_NUM_MSG_TYPES])(uint8_t *, uint8_t, MQTTSNAddress *);
@@ -171,6 +182,8 @@ class MQTTSNClient {
     /* keepalive and (keepalive * tolerance%) */
     uint32_t keepalive_interval;
     uint32_t keepalive_timeout;
+    uint32_t sleep_interval;
+    uint32_t started_sleeping;
     
     /* track when transactions start or complete */
     uint32_t last_in, last_out;

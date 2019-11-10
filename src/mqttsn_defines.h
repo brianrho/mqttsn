@@ -49,6 +49,9 @@
 /* max number of dummy transports running on the same device */
 #define MQTTSN_MAX_DUMMY_TRANSPORTS     3
 
+/* default interval between ADVERTISE messages in seconds */
+#define MQTTSN_DEFAULT_ADVERTISE_INTERVAL   (15 * 60)
+
 /* max number of publish OR subscribe topics for a client
    For instance, 10 here means a max of 10 pub topics and a max of 10 sub topics = 20 topics total */
 #define MQTTSN_MAX_INSTANCE_TOPICS      10
@@ -68,6 +71,8 @@
 /* max number of queued publish messages yet to be delivered to MQTTSN clients */
 #define MQTTSN_MAX_QUEUED_PUBLISH       64
 
+/* max number of messages buffered for a client by the gateway */
+#define MQTTSN_MAX_BUFFERED_MSGS        8
 
 #include "mqttsn_debug.h"
 

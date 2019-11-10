@@ -60,11 +60,14 @@ void MQTTSNClient::assign_handlers(void)
     msg_handlers[MQTTSN_UNSUBACK] = &MQTTSNClient::handle_unsuback;
     msg_handlers[MQTTSN_PUBLISH] = &MQTTSNClient::handle_publish;
     msg_handlers[MQTTSN_PINGRESP] = &MQTTSNClient::handle_pingresp;
+    msg_handlers[MQTTSN_DISCONNECT] = &MQTTSNClient::handle_disconnect;
     
     state_handlers[MQTTSNState_ACTIVE] = &MQTTSNClient::active_handler;
     state_handlers[MQTTSNState_SEARCHING] = &MQTTSNClient::searching_handler;
     state_handlers[MQTTSNState_CONNECTING] = &MQTTSNClient::connecting_handler;
     state_handlers[MQTTSNState_LOST] = &MQTTSNClient::lost_handler;
+    state_handlers[MQTTSNState_ASLEEP] = &MQTTSNClient::asleep_handler;
+    state_handlers[MQTTSNState_AWAKE] = &MQTTSNClient::awake_handler;
     //state_handlers[MQTTSNState_DISCONNECTED] = &MQTTSNClient::disconnected_handler;
 }
 
@@ -79,7 +82,7 @@ void MQTTSNClient::add_gateways(MQTTSNGWInfo * gateways, uint8_t count)
     }
 }
 
-bool MQTTSNClient::loop(void)
+MQTTSNState MQTTSNClient::loop(void)
 {
     /* make sure to handle msgs first
        so that the updated states get selected */
@@ -93,7 +96,7 @@ bool MQTTSNClient::loop(void)
         (this->*state_handlers[state])();
     }
     
-    return state == MQTTSNState_ACTIVE;
+    return state;
 }
 
 void MQTTSNClient::start_discovery(void)
@@ -260,7 +263,7 @@ bool MQTTSNClient::publish(const char * topic, uint8_t * data, uint8_t len, MQTT
 {
 	MQTTSN_INFO_PRINTLN("Sending PUBLISH.");
     /* if we're not connected */
-    if (!connected)
+    if (!connected || state != MQTTSNState_ACTIVE)
         return false;
 
     /* get the topic id */
@@ -415,7 +418,7 @@ bool MQTTSNClient::unsubscribe(const char * topic_name, MQTTSNFlags * flags)
     return true;
 }
 
-bool MQTTSNClient::ping(void)
+bool MQTTSNClient::ping(bool with_cid)
 {
 	MQTTSN_INFO_PRINTLN("Sending PING.");
 
@@ -425,6 +428,11 @@ bool MQTTSNClient::ping(void)
     }
     
     MQTTSNMessagePingreq msg;
+    if (with_cid) {
+        msg.client_id = (uint8_t *)client_id;
+        msg.client_id_len = strlen(client_id);
+    }
+    
     out_msg_len = msg.pack(out_msg, MQTTSN_MAX_MSG_LEN);
     transport->write_packet(out_msg, out_msg_len, &curr_gateway->gw_addr);
 
@@ -445,6 +453,11 @@ bool MQTTSNClient::transaction_pending(void)
     return msg_inflight_len != 0;
 }
 
+void MQTTSNClient::cancel_pending(void)
+{
+    msg_inflight_len = 0;
+}
+
 bool MQTTSNClient::is_connected(void) const
 {
     return connected;
@@ -462,6 +475,49 @@ bool MQTTSNClient::disconnect(void)
 
     connected = false;
     state = MQTTSNState_DISCONNECTED;
+    return true;
+}
+
+bool MQTTSNClient::sleep(uint16_t duration)
+{
+    /* if we're not connected or theres a pending reply */
+    if (!connected || msg_inflight_len) {
+        return false;
+    }
+        
+    /* pack DISCONNECT with duration */
+    MQTTSNMessageDisconnect msg;
+    msg.duration = duration;
+    
+    /* serialize and store for later */
+    msg_inflight_len = msg.pack(msg_inflight, MQTTSN_MAX_MSG_LEN);
+    if (msg_inflight_len == 0) {
+        return false;
+    }
+    
+    transport->write_packet(msg_inflight, msg_inflight_len, &curr_gateway->gw_addr);
+
+    /* start unicast timer */
+    last_out = device->get_millis();
+    unicast_timer = device->get_millis();
+    unicast_counter = 0;
+
+    return true;
+}
+
+bool MQTTSNClient::awaken(void)
+{
+    /* if we're not connected */
+    if (!connected || state != MQTTSNState_ASLEEP) {
+        return false;
+    }
+        
+    ping(true);
+    pingresp_pending = true;
+    
+    /* reset this timer to this instant */
+    last_in = device->get_millis();
+    state = MQTTSNState_AWAKE;
     return true;
 }
 
@@ -596,28 +652,31 @@ void MQTTSNClient::handle_gwinfo(uint8_t * data, uint8_t data_len, MQTTSNAddress
     MQTTSNGWInfo * gateway;
     for (int i = 0; i < gateways_capacity; i++) {
     	gateway = &gateways[i];
-
-        if (gateway->gw_id == 0) {
-        	gateway->gw_id = msg.gw_id;
-            
-            /* check if a gw or client sent the GWINFO */
-            if (msg.gw_addr != NULL) {
-            	if (msg.gw_addr_len != 0 && msg.gw_addr_len <= MQTTSN_MAX_ADDR_LEN) {
-					MQTTSN_INFO_PRINTLN("GWINFO sent by client.");
-					memcpy(gateway->gw_addr.bytes, msg.gw_addr, msg.gw_addr_len);
-					gateway->gw_addr.len = msg.gw_addr_len;
-            	}
-            	else {
-            		break;
-            	}
-            }
-            else {
-            	MQTTSN_INFO_PRINTLN("GWINFO sent by gateway.");
-                memcpy(gateway->gw_addr.bytes, src->bytes, src->len);
-                gateway->gw_addr.len = src->len;
-            }
-            break;
+    	
+    	/* if it's not a free slot */
+        if (gateway->gw_id != 0)
+            continue;
+        
+    	gateway->gw_id = msg.gw_id;
+        
+        /* check if a gw or client sent the GWINFO */
+        if (msg.gw_addr != NULL) {
+        	if (msg.gw_addr_len != 0 && msg.gw_addr_len <= MQTTSN_MAX_ADDR_LEN) {
+				MQTTSN_INFO_PRINTLN("GWINFO sent by client.");
+				memcpy(gateway->gw_addr.bytes, msg.gw_addr, msg.gw_addr_len);
+				gateway->gw_addr.len = msg.gw_addr_len;
+        	}
+        	else {
+        	    /* we got a bad packet, wait for another GWINFO */
+        		return;
+        	}
         }
+        else {
+        	MQTTSN_INFO_PRINTLN("GWINFO sent by gateway.");
+            memcpy(gateway->gw_addr.bytes, src->bytes, src->len);
+            gateway->gw_addr.len = src->len;
+        }
+        break;
     }
     
     /* cancel any pending wait */
@@ -771,7 +830,13 @@ void MQTTSNClient::handle_publish(uint8_t * data, uint8_t data_len, MQTTSNAddres
         return;
 
     MQTTSN_INFO_PRINTLN("Pub TID: %d\r\n", msg.topic_id);
-
+    
+    /* reset ping timer each time we receive a message that was buffered by the GW */
+    if (state == MQTTSNState_ASLEEP && pingresp_pending) {
+        pingreq_timer = device->get_millis();
+        last_in = device->get_millis();
+    }
+    
     /* call user handler */
     if (publish_cb != NULL)
         publish_cb(topic_name, msg.data, msg.data_len, &msg.flags);
@@ -879,6 +944,55 @@ void MQTTSNClient::handle_unsuback(uint8_t * data, uint8_t data_len, MQTTSNAddre
     last_in = device->get_millis();
 }
 
+void MQTTSNClient::handle_disconnect(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
+{
+	MQTTSN_INFO_PRINTLN("Got DISCONNECT.");
+
+    /* if this is to be used as proof of connectivity,
+       then we must verify that the gateway is the right one */
+    if (curr_gateway == NULL || memcmp(src->bytes, curr_gateway->gw_addr.bytes, curr_gateway->gw_addr.len) != 0) {
+        return;
+    }
+
+    /* no pending transactions */
+    if (msg_inflight_len == 0)
+        return;
+
+    /* parse our stored msg */
+    MQTTSNHeader header;
+    uint8_t offset = header.unpack(msg_inflight, msg_inflight_len);
+    if (offset == 0) {
+        msg_inflight_len = 0;
+        return;
+    }
+    
+    /* if we have no pending DISCONNECT */
+    if (header.msg_type != MQTTSN_DISCONNECT)
+        return;
+
+    /* unpack the original DISCONNECT we sent, extract the sleep duration */
+    MQTTSNMessageDisconnect sent;
+    if (!sent.unpack(&msg_inflight[offset], msg_inflight_len - offset) || sent.duration == 0) {
+        msg_inflight_len = 0;
+        return;
+    }
+    
+    sleep_interval = sent.duration;
+    
+    /* response payload must be empty */
+    if (data_len != 0)
+        return;
+    
+    /* finally we are asleep */
+    state = MQTTSNState_ASLEEP;
+    started_sleeping = device->get_millis();
+    MQTTSN_INFO_PRINTLN("Sleep started.");
+    
+    pingresp_pending = false;
+    msg_inflight_len = 0;
+    last_in = device->get_millis();
+}
+
 void MQTTSNClient::handle_pingresp(uint8_t * data, uint8_t data_len, MQTTSNAddress * src)
 {
     MQTTSN_INFO_PRINTLN("Got PINGRESP.");
@@ -892,8 +1006,16 @@ void MQTTSNClient::handle_pingresp(uint8_t * data, uint8_t data_len, MQTTSNAddre
     /* if theres no pending PINGRESP or the payload isnt empty */
     if (!pingresp_pending || data_len != 0)
         return;
-
+        
     pingresp_pending = false;
+    
+    /* we've now gotten PINGRESP so return to sleep */
+    if (state == MQTTSNState_AWAKE) {
+        state = MQTTSNState_ASLEEP;
+        started_sleeping = device->get_millis();
+        MQTTSN_INFO_PRINTLN("Resuming sleep.");
+    }
+    
     last_in = device->get_millis();
 }
 
@@ -932,6 +1054,48 @@ void MQTTSNClient::lost_handler(void)
     connect(0, &connect_flags, keepalive_interval / 1000);
 }
 
+void MQTTSNClient::asleep_handler(void)
+{
+    uint32_t curr_time = device->get_millis();
+    
+    if (curr_time - started_sleeping < sleep_interval)
+        return;
+    
+    state = MQTTSNState_AWAKE;
+}
+
+void MQTTSNClient::awake_handler(void)
+{
+    uint32_t curr_time = device->get_millis();
+    
+    /* if we havent sent a ping at all yet upon waking up, then do so now */
+    if (!pingresp_pending) {
+        ping(true);
+        pingresp_pending = true;
+        
+        /* reset this timer to this instant */
+        last_in = curr_time;
+        return;
+    }
+    
+    /* if there's still time for a reply */
+    if ((uint32_t)(curr_time - pingreq_timer) < MQTTSN_T_RETRY)
+        return;
+        
+    /* if we've hit the keepalive limit, we're lost */
+    if ((uint32_t)(curr_time - last_in) >= keepalive_timeout) {
+        state = MQTTSNState_LOST;
+        curr_gateway->available = false;
+        curr_gateway = NULL;
+        
+        connected = false;
+        pingresp_pending = false;
+    }
+    else {
+        /* if we still have time, keep pinging */
+        ping();
+    }
+} 
 
 void MQTTSNClient::active_handler(void)
 {
@@ -941,7 +1105,7 @@ void MQTTSNClient::active_handler(void)
     if ((uint32_t)(curr_time - last_out) < keepalive_interval && (uint32_t)(curr_time - last_in) < keepalive_interval)
         return;
     
-    /* if we havent sent a ping */
+    /* if we havent sent a ping yet */
     if (!pingresp_pending) {
         ping();
         pingresp_pending = true;
@@ -964,7 +1128,6 @@ void MQTTSNClient::active_handler(void)
     else {
         /* if we still have time, keep pinging */
         ping();
-        pingresp_pending = true;
     }
 }
 

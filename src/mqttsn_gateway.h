@@ -22,7 +22,10 @@ typedef struct {
 typedef enum {
     MQTTSNInstanceStatus_ACTIVE,
     MQTTSNInstanceStatus_LOST,
-    MQTTSNInstanceStatus_DISCONNECTED
+    MQTTSNInstanceStatus_DISCONNECTED,
+    
+    MQTTSNInstanceStatus_ASLEEP,
+    MQTTSNInstanceStatus_AWAKE,
 } MQTTSNInstanceStatus;
 
 class MQTTSNDevice;
@@ -78,6 +81,13 @@ class MQTTSNInstance {
     uint32_t keepalive_interval;
     uint32_t keepalive_timeout;
     
+    uint32_t sleep_interval;
+    uint32_t sleep_timeout;
+    
+    /* queue for holding publish messages awaiting dispatch, while client sleeps */
+    LiteFifo sleepy_fifo;
+    uint8_t sleepy_fifo_buf[MQTTSN_MAX_BUFFERED_MSGS * MQTTSN_MAX_MSG_LEN];
+    
     /* track when transactions start or complete */
     uint32_t last_in;
     MQTTSNInstanceStatus status;
@@ -103,6 +113,8 @@ class MQTTSNGateway {
     /* register transports that are used to talk to clients */
     bool register_transport(MQTTSNTransport * transport);
     
+    void set_advertise_interval(uint16_t seconds);
+    
     /* gateway tasks loop */
     bool loop(void);
     
@@ -111,6 +123,7 @@ class MQTTSNGateway {
     bool set_topic_prefix(const char * prefix);
     
     private:
+    void advertise(void);
     void assign_msg_handlers(void);
     void handle_messages(void);
     
@@ -121,6 +134,7 @@ class MQTTSNGateway {
     uint16_t get_topic_id(const uint8_t * name, uint8_t name_len);
     MQTTSNTopicMapping * get_topic_mapping(uint16_t tid);
     MQTTSNInstance * get_client(MQTTSNTransport * transport, MQTTSNAddress * addr);
+    MQTTSNInstance * get_client(const char * cid, uint8_t cid_len);
     bool get_mqtt_topic_name(const char * name, char * mqtt_name, uint16_t mqtt_name_sz);
     
     /* MQTTSN message handlers */
@@ -131,6 +145,7 @@ class MQTTSNGateway {
     void handle_subscribe(uint8_t * data, uint8_t data_len, MQTTSNTransport * transport, MQTTSNAddress * src);
     void handle_unsubscribe(uint8_t * data, uint8_t data_len, MQTTSNTransport * transport, MQTTSNAddress * src);
     void handle_pingreq(uint8_t * data, uint8_t data_len, MQTTSNTransport * transport, MQTTSNAddress * src);
+    void handle_disconnect(uint8_t * data, uint8_t data_len, MQTTSNTransport * transport, MQTTSNAddress * src);
     
     /* MQTT event handlers */
     static void handle_mqtt_connect(void * which, bool conn_state);
@@ -160,6 +175,10 @@ class MQTTSNGateway {
     bool connected;
     /* for unicast msgs */
     uint16_t curr_msg_id;
+    
+    /* interval between ADVERTISE messages in millisecs */
+    uint32_t advert_interval;
+    uint32_t last_advert;
     
     /* queue for holding publish messages awaiting dispatch */
     LiteFifo pub_fifo;
