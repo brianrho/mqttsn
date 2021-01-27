@@ -317,7 +317,7 @@ bool MQTTSNGateway::loop(void)
         /* dispatch msg to clients */
         for (MQTTSNInstance &clnt : clients) {
             /* skip if this client isnt subscribed to this topic */
-            if (clnt.is_subbed(tid))
+            if (!clnt.is_subbed(tid))
                 continue;
                 
             /* buffer the msg if the client is asleep, else send it now */
